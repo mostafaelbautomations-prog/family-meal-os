@@ -1,0 +1,38 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800&family=Varela+Round&display=swap');
+@import 'tailwindcss';
+
+@theme {
+  --color-primary: #9a3412;
+  --color-primary-strong: #7c2d12;
+  --color-secondary: #c2410c;
+  --color-accent: #059669;
+  --color-cream: #fffbeb;
+  --color-ink: #1c1917;
+  --color-ink-soft: #57534e;
+  --color-surface: #ffffff;
+  --color-mist: #f8f2f0;
+  --color-line: #f2e6e2;
+  --color-danger: #dc2626;
+  --color-danger-soft: #fef2f2;
+
+  --font-display: 'Varela Round', ui-rounded, system-ui, sans-serif;
+  --font-sans: 'Nunito Sans', system-ui, -apple-system, sans-serif;
+}
+
+html {
+  background: var(--color-cream);
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* iOS: inputs under 16px trigger auto-zoom */
+input,
+select,
+textarea,
+button {
+  font-size: 16px;
+}

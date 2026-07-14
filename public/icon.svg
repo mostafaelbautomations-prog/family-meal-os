@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#9A3412"/>
+  <!-- bowl -->
+  <path d="M96 268c0 88 72 148 160 148s160-60 160-148H96z" fill="#FFFBEB"/>
+  <path d="M120 268c0 74 61 124 136 124s136-50 136-124H120z" fill="#FDBA74"/>
+  <!-- steam -->
+  <path d="M200 208c0-24 20-28 20-48 0-12-6-20-12-26" stroke="#FFFBEB" stroke-width="20" stroke-linecap="round" fill="none"/>
+  <path d="M264 200c0-28 22-32 22-54 0-13-7-22-13-28" stroke="#FFFBEB" stroke-width="20" stroke-linecap="round" fill="none"/>
+  <path d="M326 208c0-24 20-28 20-48 0-12-6-20-12-26" stroke="#FFFBEB" stroke-width="20" stroke-linecap="round" fill="none"/>
+</svg>
