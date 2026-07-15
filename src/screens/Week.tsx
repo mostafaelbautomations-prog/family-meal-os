@@ -2,16 +2,16 @@
 // the status chip to cycle planned → cooked → skipped, swap any meal for
 // another active recipe. "Generate next week" arrives with the engine (Phase 5).
 
-import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Link } from 'react-router-dom';
 import { Card, Screen } from '../components/Screen';
-import { recipesRepo, weekPlansRepo } from '../db/repo';
+import { feedbackRepo, recipesRepo, weekPlansRepo } from '../db/repo';
 import { generationUnlocked, loadDraft } from '../ai/engine';
 import { formatDayLabel, isToday } from '../lib/dates';
-import { formatMacrosCompact } from '../lib/nutrition';
-import type { MealStatus, Recipe } from '../types';
-import { IconSparkles, IconSwap, IconX } from '../components/Icons';
+import { groupActiveRecipes } from '../lib/recipeGroups';
+import { MealQuickSwitch } from '../components/MealQuickSwitch';
+import type { MealStatus } from '../types';
+import { IconSparkles } from '../components/Icons';
 
 const STATUS_STYLE: Record<MealStatus, string> = {
   planned: 'bg-mist text-ink-soft',
@@ -26,20 +26,14 @@ const NEXT_STATUS: Record<MealStatus, MealStatus> = {
 };
 
 export function WeekScreen() {
-  const [swapTarget, setSwapTarget] = useState<{ planId: string; mealId: string; currentName: string } | null>(
-    null
-  );
-
   const data = useLiveQuery(async () => {
     const plan = await weekPlansRepo.activePlan();
     if (!plan) return undefined;
-    const all = await recipesRepo.all();
+    const [all, feedback] = await Promise.all([recipesRepo.all(), feedbackRepo.all()]);
     return {
       plan,
       recipes: new Map(all.map((r) => [r.id, r])),
-      activeRecipes: all
-        .filter((r) => r.status === 'active')
-        .sort((a, b) => a.name.localeCompare(b.name)),
+      groups: groupActiveRecipes(all, feedback),
       unlocked: await generationUnlocked(),
       hasDraft: loadDraft() !== null,
     };
@@ -128,41 +122,39 @@ export function WeekScreen() {
                   ≈ {dayKcal} kcal · P{dayProtein} C{dayCarbs} F{dayFat}
                 </p>
               </div>
-              <ul className="flex flex-col gap-1">
+              <ul className="flex flex-col gap-2">
                 {day.meals.map((meal) => {
                   const recipe = data.recipes.get(meal.recipeId);
                   return (
-                    <li key={meal.id} className="flex items-center gap-1.5">
-                      <Link
-                        to={`/recipe/${meal.recipeId}`}
-                        className="min-h-11 flex-1 self-center py-2 font-semibold"
-                      >
-                        {recipe?.name ?? 'Unknown recipe'}
-                      </Link>
-                      <button
-                        aria-label={`Swap ${recipe?.name ?? 'meal'}`}
-                        onClick={() =>
-                          setSwapTarget({
-                            planId: data.plan.id,
-                            mealId: meal.id,
-                            currentName: recipe?.name ?? '',
-                          })
-                        }
-                        className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-lg text-ink-soft"
-                      >
-                        <IconSwap size={18} />
-                      </button>
-                      <button
-                        onClick={() =>
-                          void weekPlansRepo.updateMeal(data.plan.id, meal.id, {
-                            status: NEXT_STATUS[meal.status],
-                          })
-                        }
-                        className={`min-h-11 w-20 shrink-0 cursor-pointer rounded-full text-xs font-bold ${STATUS_STYLE[meal.status]}`}
-                        aria-label={`Status: ${meal.status}. Tap to change.`}
-                      >
-                        {meal.status}
-                      </button>
+                    <li key={meal.id} className="flex flex-col gap-1">
+                      <div className="flex items-center gap-1.5">
+                        <Link
+                          to={`/recipe/${meal.recipeId}`}
+                          className="min-h-11 flex-1 self-center py-2 font-semibold"
+                        >
+                          {recipe?.name ?? 'Unknown recipe'}
+                        </Link>
+                        <button
+                          onClick={() =>
+                            void weekPlansRepo.updateMeal(data.plan.id, meal.id, {
+                              status: NEXT_STATUS[meal.status],
+                            })
+                          }
+                          className={`min-h-11 w-20 shrink-0 cursor-pointer rounded-full text-xs font-bold ${STATUS_STYLE[meal.status]}`}
+                          aria-label={`Status: ${meal.status}. Tap to change.`}
+                        >
+                          {meal.status}
+                        </button>
+                      </div>
+                      {recipe && meal.status === 'planned' && (
+                        <MealQuickSwitch
+                          planId={data.plan.id}
+                          mealId={meal.id}
+                          currentRecipe={recipe}
+                          groups={data.groups}
+                          className="w-full"
+                        />
+                      )}
                     </li>
                   );
                 })}
@@ -178,64 +170,6 @@ export function WeekScreen() {
           </p>
         )}
       </div>
-
-      {swapTarget && data && (
-        <SwapSheet
-          target={swapTarget}
-          recipes={data.activeRecipes}
-          onClose={() => setSwapTarget(null)}
-        />
-      )}
     </Screen>
-  );
-}
-
-function SwapSheet({
-  target,
-  recipes,
-  onClose,
-}: {
-  target: { planId: string; mealId: string; currentName: string };
-  recipes: Recipe[];
-  onClose: () => void;
-}) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50" onClick={onClose}>
-      <div
-        className="max-h-[75dvh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-label="Swap meal"
-      >
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-display text-lg">Swap "{target.currentName}" for…</h2>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-mist text-ink-soft"
-          >
-            <IconX size={20} />
-          </button>
-        </div>
-        <ul className="flex flex-col divide-y divide-line">
-          {recipes.map((r) => (
-            <li key={r.id}>
-              <button
-                onClick={() => {
-                  void weekPlansRepo.updateMeal(target.planId, target.mealId, { recipeId: r.id });
-                  onClose();
-                }}
-                className="min-h-12 w-full cursor-pointer py-2 text-left"
-              >
-                <span className="block font-semibold">{r.name}</span>
-                <span className="block text-xs text-ink-soft">
-                  {formatMacrosCompact(r.nutrition)} · {r.method}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
   );
 }

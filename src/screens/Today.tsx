@@ -13,8 +13,9 @@ import { advanceSteps, cookSteps, mealTimeline, servePassed } from '../lib/timel
 import { getChecks, toggleCheck } from '../lib/stepChecks';
 import { backupNudgeDue, snoozeNudge } from '../lib/backupNudge';
 import { formatMacros, formatMacrosCompact } from '../lib/nutrition';
+import { groupActiveRecipes } from '../lib/recipeGroups';
 import { RatingLinksSheet } from '../components/RatingLinksSheet';
-import { subDays, format } from 'date-fns';
+import { MealQuickSwitch } from '../components/MealQuickSwitch';
 import type { PlannedMeal, Recipe } from '../types';
 import {
   IconAlert,
@@ -24,7 +25,6 @@ import {
   IconFlame,
   IconShare,
   IconSparkles,
-  IconSwap,
   IconX,
 } from '../components/Icons';
 
@@ -209,37 +209,8 @@ function SwapTodaySheet({
   const navigate = useNavigate();
 
   const groups = useLiveQuery(async () => {
-    const [recipes, feedback] = await Promise.all([recipesRepo.active(), feedbackRepo.all()]);
-    const pool = recipes.filter((r) => r.id !== meal.recipeId);
-
-    // Average enjoyment + latest date per recipe, across all feedback.
-    const stats = new Map<string, { sum: number; count: number; latest: string }>();
-    for (const fb of feedback) {
-      const s = stats.get(fb.recipeId) ?? { sum: 0, count: 0, latest: '' };
-      for (const e of fb.entries) {
-        s.sum += e.enjoyment;
-        s.count += 1;
-      }
-      if (fb.date > s.latest) s.latest = fb.date;
-      stats.set(fb.recipeId, s);
-    }
-    const avg = (id: string) => {
-      const s = stats.get(id);
-      return s && s.count > 0 ? s.sum / s.count : 0;
-    };
-
-    const favorites = pool
-      .filter((r) => avg(r.id) >= 4)
-      .sort((a, b) => avg(b.id) - avg(a.id));
-    const cutoff = format(subDays(new Date(), 14), 'yyyy-MM-dd');
-    const favoriteIds = new Set(favorites.map((r) => r.id));
-    const recent = pool
-      .filter((r) => !favoriteIds.has(r.id) && (stats.get(r.id)?.latest ?? '') >= cutoff)
-      .sort((a, b) => (stats.get(b.id)?.latest ?? '').localeCompare(stats.get(a.id)?.latest ?? ''));
-    const shownIds = new Set([...favoriteIds, ...recent.map((r) => r.id)]);
-    const rest = pool.filter((r) => !shownIds.has(r.id)).sort((a, b) => a.name.localeCompare(b.name));
-
-    return { favorites, recent, rest };
+    const [recipes, feedback] = await Promise.all([recipesRepo.all(), feedbackRepo.all()]);
+    return groupActiveRecipes(recipes, feedback, { excludeId: meal.recipeId });
   }, [meal.recipeId]);
 
   async function pick(recipeId: string) {
@@ -356,12 +327,15 @@ function MealCard({ tm, date, now }: { tm: TodayMeal; date: string; now: Date })
       </div>
 
       {meal.status === 'planned' && !passed && (
-        <button
-          onClick={() => setSwapOpen(true)}
-          className="mt-2 flex min-h-11 cursor-pointer items-center gap-1.5 text-sm font-bold text-secondary"
-        >
-          <IconSwap size={16} /> Don't want this today? Swap it
-        </button>
+        <div className="mt-2 flex items-center gap-2">
+          <MealQuickSwitch planId={planId} mealId={meal.id} currentRecipe={recipe} className="flex-1" />
+          <button
+            onClick={() => setSwapOpen(true)}
+            className="flex min-h-11 shrink-0 cursor-pointer items-center gap-1 rounded-lg px-2 text-sm font-bold text-secondary"
+          >
+            <IconSparkles size={14} /> More
+          </button>
+        </div>
       )}
       {swapOpen && (
         <SwapTodaySheet
