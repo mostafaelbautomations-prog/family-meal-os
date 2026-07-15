@@ -3,6 +3,7 @@ import type {
   AppSettings,
   GroceryItem,
   MealFeedback,
+  MemberRating,
   PantryStaple,
   Person,
   PersonProfile,
@@ -20,6 +21,7 @@ export class MealDB extends Dexie {
   grocery!: EntityTable<GroceryItem, 'id'>;
   profiles!: EntityTable<PersonProfile, 'personId'>;
   settings!: EntityTable<AppSettings, 'id'>;
+  ratings!: EntityTable<MemberRating, 'id'>;
 
   constructor() {
     super('family-meal-os');
@@ -51,6 +53,11 @@ export class MealDB extends Dexie {
             }
           });
       });
+
+    // v3: family self-ratings received via share links. Purely additive.
+    this.version(3).stores({
+      ratings: 'id, plannedMealId, personId, date, recipeId',
+    });
 
     // First-run seed: people, Week 1 plan + recipes, staples, settings.
     this.on('populate', () => seedDatabase(this));

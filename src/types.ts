@@ -104,6 +104,19 @@ export interface MealFeedback {
   overallNote: string;
 }
 
+/** A family member's self-rating, received via the share-link flow. */
+export interface MemberRating {
+  id: string;
+  plannedMealId: string;
+  recipeId: string;
+  personId: string;
+  date: string; // meal date (ISO)
+  rating: number; // 1–10
+  enjoyed: string; // "what did you enjoy about it?"
+  improve: string; // "how should it improve next time?"
+  receivedAt: string;
+}
+
 export type StapleLevel = 'stocked' | 'low' | 'out';
 
 export interface PantryStaple {

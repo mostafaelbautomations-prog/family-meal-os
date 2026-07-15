@@ -8,6 +8,7 @@ import type {
   GrocerySource,
   MealFeedback,
   MealStatus,
+  MemberRating,
   PantryStaple,
   Person,
   PersonProfile,
@@ -15,6 +16,7 @@ import type {
   StapleLevel,
   WeekPlan,
 } from '../types';
+import type { RatingReply } from '../lib/ratingLinks';
 import { normalizeIngredientName } from '../lib/normalize';
 import { todayISO, weekStartISO } from '../lib/dates';
 import { buildWeekGroceryList } from '../lib/grocery';
@@ -237,6 +239,38 @@ export async function markIngredientRanOut(name: string, recipeId?: string): Pro
     if (staple) await db.pantry.update(staple.id, { level: 'out', updatedAt: now() });
   });
 }
+
+// --- Member self-ratings (share-link flow) -----------------------------------------
+
+export const ratingsRepo = {
+  all: (): Promise<MemberRating[]> => db.ratings.toArray(),
+
+  forMeal: (plannedMealId: string): Promise<MemberRating[]> =>
+    db.ratings.where('plannedMealId').equals(plannedMealId).toArray(),
+
+  /** Upsert by (meal, person): re-submitting a link replaces the old rating. */
+  saveReply: async (reply: RatingReply): Promise<void> => {
+    await db.transaction('rw', db.ratings, async () => {
+      const existing = await db.ratings
+        .where('plannedMealId')
+        .equals(reply.mealId)
+        .filter((r) => r.personId === reply.personId)
+        .first();
+      const record: MemberRating = {
+        id: existing?.id ?? crypto.randomUUID(),
+        plannedMealId: reply.mealId,
+        recipeId: reply.recipeId,
+        personId: reply.personId,
+        date: reply.date,
+        rating: reply.rating,
+        enjoyed: reply.enjoyed,
+        improve: reply.improve,
+        receivedAt: now(),
+      };
+      await db.ratings.put(record);
+    });
+  },
+};
 
 // --- Profiles -----------------------------------------------------------------------
 

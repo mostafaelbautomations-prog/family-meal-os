@@ -158,6 +158,13 @@ export const IconSwap = (p: IconProps) => (
   </svg>
 );
 
+export const IconShare = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7" />
+    <path d="M16 6l-4-4-4 4M12 2v13" />
+  </svg>
+);
+
 export const IconSparkles = (p: IconProps) => (
   <svg {...base(p)}>
     <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9Z" />

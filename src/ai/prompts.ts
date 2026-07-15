@@ -4,6 +4,7 @@
 import type {
   AppSettings,
   MealFeedback,
+  MemberRating,
   PantryStaple,
   Person,
   PersonProfile,
@@ -18,6 +19,7 @@ export interface GenerationInput {
   activeRecipes: Recipe[];
   retiredRecipes: Recipe[];
   feedbackHistory: MealFeedback[]; // last 2–4 weeks, oldest first
+  memberRatings: MemberRating[]; // self-ratings via share links, same window
   pantry: PantryStaple[];
   settings: AppSettings;
   retirementCandidateIds: string[];
@@ -31,6 +33,7 @@ export function buildGenerationPrompt(input: GenerationInput): string {
     activeRecipes,
     retiredRecipes,
     feedbackHistory,
+    memberRatings,
     pantry,
     settings,
     retirementCandidateIds,
@@ -85,6 +88,23 @@ export function buildGenerationPrompt(input: GenerationInput): string {
           })
           .join('\n');
 
+  const ratingsBlock =
+    memberRatings.length === 0
+      ? '(none yet)'
+      : memberRatings
+          .slice()
+          .sort((a, b) => a.date.localeCompare(b.date))
+          .map((r) => {
+            const bits = [
+              r.enjoyed && `enjoyed: "${r.enjoyed}"`,
+              r.improve && `improve next time: "${r.improve}"`,
+            ]
+              .filter(Boolean)
+              .join('; ');
+            return `- ${r.date} ${recipeName(r.recipeId)} — ${personName(r.personId)} self-rated ${r.rating}/10${bits ? ` — ${bits}` : ''}`;
+          })
+          .join('\n');
+
   const profilesBlock = profiles
     .map((p) => {
       const person = people.find((x) => x.id === p.personId);
@@ -114,6 +134,10 @@ ${retiredBlock}
 
 ## Feedback history (recent weeks, oldest first)
 ${feedbackBlock}
+
+## Family self-ratings (each person rated on their own phone, 1–10)
+Weigh these heavily — they came straight from the eater, and the "improve next time" notes are direct requests for adjustments.
+${ratingsBlock}
 
 ## Person preference profiles (update these from feedback)
 - ateAmount scale: none < little < half < most < all < seconds. enjoyment: 1 = hated, 5 = loved.

@@ -21,11 +21,12 @@ export interface AssembledGeneration {
 }
 
 export async function assembleGeneration(): Promise<AssembledGeneration> {
-  const [people, profiles, recipes, allFeedback, pantry, settings] = await Promise.all([
+  const [people, profiles, recipes, allFeedback, allRatings, pantry, settings] = await Promise.all([
     db.people.toArray(),
     db.profiles.toArray(),
     db.recipes.toArray(),
     db.feedback.toArray(),
+    db.ratings.toArray(),
     db.pantry.toArray(),
     db.settings.get('singleton'),
   ]);
@@ -54,6 +55,7 @@ export async function assembleGeneration(): Promise<AssembledGeneration> {
     activeRecipes,
     retiredRecipes,
     feedbackHistory,
+    memberRatings: allRatings.filter((r) => r.date >= cutoff),
     pantry,
     settings,
     retirementCandidateIds: retirementCandidateIds(allFeedback),

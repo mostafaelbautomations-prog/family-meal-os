@@ -13,6 +13,7 @@ import { advanceSteps, cookSteps, mealTimeline, servePassed } from '../lib/timel
 import { getChecks, toggleCheck } from '../lib/stepChecks';
 import { backupNudgeDue, snoozeNudge } from '../lib/backupNudge';
 import { formatMacros, formatMacrosCompact } from '../lib/nutrition';
+import { RatingLinksSheet } from '../components/RatingLinksSheet';
 import { subDays, format } from 'date-fns';
 import type { PlannedMeal, Recipe } from '../types';
 import {
@@ -21,6 +22,7 @@ import {
   IconChevronRight,
   IconDownload,
   IconFlame,
+  IconShare,
   IconSparkles,
   IconSwap,
   IconX,
@@ -323,6 +325,7 @@ function MealCard({ tm, date, now }: { tm: TodayMeal; date: string; now: Date })
   const [, setBump] = useState(0);
   const [ranOut, setRanOut] = useState<Set<string>>(new Set());
   const [swapOpen, setSwapOpen] = useState(false);
+  const [ratingLinksOpen, setRatingLinksOpen] = useState(false);
 
   const timeline = mealTimeline(recipe.prepSteps, date, meal.serveTime, now);
   const cooking = cookSteps(timeline);
@@ -383,6 +386,23 @@ function MealCard({ tm, date, now }: { tm: TodayMeal; date: string; now: Date })
         <p className="mt-3 flex items-center gap-1.5 text-sm font-semibold text-accent">
           <IconCheck size={16} /> Feedback logged
         </p>
+      )}
+      {passed && meal.status !== 'skipped' && (
+        <button
+          onClick={() => setRatingLinksOpen(true)}
+          className="mt-2 flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-line bg-surface font-semibold text-secondary"
+        >
+          <IconShare size={16} /> Send family rating links
+        </button>
+      )}
+      {ratingLinksOpen && (
+        <RatingLinksSheet
+          plannedMealId={meal.id}
+          recipeId={recipe.id}
+          recipeName={recipe.name}
+          date={date}
+          onClose={() => setRatingLinksOpen(false)}
+        />
       )}
 
       {/* Cook timeline */}

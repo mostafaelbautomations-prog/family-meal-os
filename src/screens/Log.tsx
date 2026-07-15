@@ -1,22 +1,25 @@
 // Feedback logging: meals awaiting feedback on top, then history grouped by
 // week with a per-person filter. Saving feedback marks the meal cooked.
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Card, Screen } from '../components/Screen';
 import { db } from '../db/db';
-import { feedbackRepo, peopleRepo, recipesRepo, weekPlansRepo } from '../db/repo';
+import { feedbackRepo, peopleRepo, ratingsRepo, recipesRepo, weekPlansRepo } from '../db/repo';
+import { RatingLinksSheet } from '../components/RatingLinksSheet';
+import { ratingToEnjoyment } from '../lib/ratingLinks';
 import { formatDayLabel, timeOnDate, todayISO, weekStartISO } from '../lib/dates';
 import { parseISO } from 'date-fns';
 import type {
   AteAmount,
   Enjoyment,
   MealFeedback,
+  MemberRating,
   Person,
   PersonFeedback,
   Recipe,
 } from '../types';
-import { IconCheck, IconChevronLeft, IconChevronRight } from '../components/Icons';
+import { IconCheck, IconChevronLeft, IconChevronRight, IconShare } from '../components/Icons';
 
 const ATE_OPTIONS: { value: AteAmount; label: string }[] = [
   { value: 'none', label: 'None' },
@@ -45,6 +48,7 @@ interface PendingMeal {
 
 export function LogScreen() {
   const [selected, setSelected] = useState<PendingMeal | null>(null);
+  const [linksFor, setLinksFor] = useState<PendingMeal | null>(null);
 
   const data = useLiveQuery(async () => {
     const [plan, people, allFeedback, recipes] = await Promise.all([
@@ -70,7 +74,8 @@ export function LogScreen() {
         }
       }
     }
-    return { people: people.filter((p) => p.active), pending, allFeedback, recipeMap };
+    const allRatings = await ratingsRepo.all();
+    return { people: people.filter((p) => p.active), pending, allFeedback, recipeMap, allRatings };
   });
 
   if (!data) return <Screen title="Log">{null}</Screen>;
@@ -95,26 +100,56 @@ export function LogScreen() {
           </Card>
         ) : (
           <div className="flex flex-col gap-2">
-            {data.pending.map((p) => (
-              <button
-                key={p.mealId}
-                onClick={() => setSelected(p)}
-                className="cursor-pointer text-left"
-              >
-                <Card className="flex items-center justify-between">
-                  <div>
+            {data.pending.map((p) => {
+              const received = data.allRatings.filter((r) => r.plannedMealId === p.mealId).length;
+              return (
+                <Card key={p.mealId} className="flex items-center gap-2">
+                  <button onClick={() => setSelected(p)} className="min-h-11 flex-1 cursor-pointer text-left">
                     <p className="font-display">{p.recipe.name}</p>
-                    <p className="text-xs text-ink-soft">{formatDayLabel(p.date)}</p>
-                  </div>
-                  <IconChevronRight className="text-ink-soft" />
+                    <p className="text-xs text-ink-soft">
+                      {formatDayLabel(p.date)}
+                      {received > 0 && (
+                        <span className="ml-1.5 font-bold text-accent">· {received} self-rated</span>
+                      )}
+                    </p>
+                  </button>
+                  <button
+                    onClick={() => setLinksFor(p)}
+                    aria-label={`Send rating links for ${p.recipe.name}`}
+                    className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-line text-secondary"
+                  >
+                    <IconShare size={18} />
+                  </button>
+                  <button
+                    onClick={() => setSelected(p)}
+                    aria-label={`Log ${p.recipe.name}`}
+                    className="flex h-11 w-8 shrink-0 cursor-pointer items-center justify-center text-ink-soft"
+                  >
+                    <IconChevronRight />
+                  </button>
                 </Card>
-              </button>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>
 
-      <HistorySection people={data.people} feedback={data.allFeedback} recipeMap={data.recipeMap} />
+      {linksFor && (
+        <RatingLinksSheet
+          plannedMealId={linksFor.mealId}
+          recipeId={linksFor.recipe.id}
+          recipeName={linksFor.recipe.name}
+          date={linksFor.date}
+          onClose={() => setLinksFor(null)}
+        />
+      )}
+
+      <HistorySection
+        people={data.people}
+        feedback={data.allFeedback}
+        recipeMap={data.recipeMap}
+        ratings={data.allRatings}
+      />
     </Screen>
   );
 }
@@ -137,6 +172,29 @@ function FeedbackForm({
   const [cookNotes, setCookNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  // Family self-ratings (share-link flow) pre-fill enjoyment + notes.
+  const selfRatings = useLiveQuery(() => ratingsRepo.forMeal(pending.mealId), [pending.mealId]);
+  useEffect(() => {
+    if (!selfRatings?.length) return;
+    setEntries((current) => {
+      const next = { ...current };
+      for (const r of selfRatings) {
+        const entry = next[r.personId];
+        if (!entry) continue;
+        const note = [r.enjoyed, r.improve && `improve: ${r.improve}`].filter(Boolean).join(' · ');
+        next[r.personId] = {
+          ...entry,
+          enjoyment: entry.enjoyment ?? ratingToEnjoyment(r.rating),
+          note: entry.note ?? (note ? note.slice(0, 200) : undefined),
+        };
+      }
+      return next;
+    });
+  }, [selfRatings]);
+
+  const ratingFor = (personId: string): MemberRating | undefined =>
+    selfRatings?.find((r) => r.personId === personId);
 
   const complete = people.every((p) => entries[p.id]?.ateAmount && entries[p.id]?.enjoyment);
 
@@ -188,9 +246,17 @@ function FeedbackForm({
       <div className="flex flex-col gap-4">
         {people.map((person) => {
           const e = entries[person.id];
+          const selfRating = ratingFor(person.id);
           return (
             <Card key={person.id}>
-              <h2 className="mb-2 font-display text-lg">{person.name}</h2>
+              <h2 className="mb-2 font-display text-lg">
+                {person.name}
+                {selfRating && (
+                  <span className="ml-2 rounded-full bg-accent/15 px-2 py-0.5 text-xs font-bold text-accent">
+                    self-rated {selfRating.rating}/10
+                  </span>
+                )}
+              </h2>
 
               <p className="mb-1 text-xs font-bold tracking-wide text-ink-soft uppercase">How much?</p>
               <div className="mb-3 grid grid-cols-6 gap-1" role="radiogroup" aria-label={`${person.name} ate`}>
@@ -283,10 +349,12 @@ function HistorySection({
   people,
   feedback,
   recipeMap,
+  ratings,
 }: {
   people: Person[];
   feedback: MealFeedback[];
   recipeMap: Map<string, Recipe>;
+  ratings: MemberRating[];
 }) {
   const [personFilter, setPersonFilter] = useState<string | null>(null);
   const [dislikedOnly, setDislikedOnly] = useState(false);
@@ -369,6 +437,19 @@ function HistorySection({
                       {f.cookNotes && <>cook: "{f.cookNotes}"</>}
                     </p>
                   )}
+                  {(() => {
+                    const self = ratings.filter(
+                      (r) =>
+                        r.plannedMealId === f.plannedMealId &&
+                        (!personFilter || r.personId === personFilter)
+                    );
+                    if (self.length === 0) return null;
+                    return (
+                      <p className="mt-1.5 text-xs font-semibold text-accent">
+                        Self-rated: {self.map((r) => `${personName(r.personId)} ${r.rating}/10`).join(', ')}
+                      </p>
+                    );
+                  })()}
                 </Card>
               ))}
             </div>

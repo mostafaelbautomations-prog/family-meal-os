@@ -15,7 +15,11 @@ const TABLES = [
   'grocery',
   'profiles',
   'settings',
+  'ratings',
 ] as const;
+
+// Tables added after v1 backups shipped — tolerated as missing on import.
+const OPTIONAL_TABLES: readonly TableName[] = ['ratings'];
 
 type TableName = (typeof TABLES)[number];
 
@@ -72,6 +76,7 @@ export function validateBackup(data: unknown): { ok: true; backup: BackupFile } 
   const tables = d.tables as Record<string, unknown>;
   for (const name of TABLES) {
     if (!Array.isArray(tables[name])) {
+      if (OPTIONAL_TABLES.includes(name)) continue; // older backup — fine
       return { ok: false, error: `Backup is missing the "${name}" table.` };
     }
   }
@@ -83,7 +88,7 @@ export async function importBackup(backup: BackupFile): Promise<void> {
   await db.transaction('rw', TABLES.map((t) => db.table(t)), async () => {
     for (const name of TABLES) {
       await db.table(name).clear();
-      await db.table(name).bulkAdd(backup.tables[name]);
+      await db.table(name).bulkAdd(backup.tables[name] ?? []);
     }
   });
 }

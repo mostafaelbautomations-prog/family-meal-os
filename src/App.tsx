@@ -11,14 +11,19 @@ import { RecipeDetailScreen } from './screens/RecipeDetail';
 import { CookModeScreen } from './screens/CookMode';
 import { GenerateScreen } from './screens/Generate';
 import { ChefScreen } from './screens/Chef';
+import { RateScreen, RateReturnScreen } from './screens/Rate';
 
 export default function App() {
   const location = useLocation();
   const inCookMode = location.pathname.startsWith('/cook/');
+  // /rate is opened on family members' phones from a shared link — no nav,
+  // no install banner, just the form.
+  const inRateFlow = location.pathname.startsWith('/rate');
+  const chromeless = inCookMode || inRateFlow;
   return (
     <div className="mx-auto min-h-dvh max-w-md">
       <BackgroundEffects />
-      {!inCookMode && <InstallBanner />}
+      {!chromeless && <InstallBanner />}
       <Routes>
         <Route path="/" element={<TodayScreen />} />
         <Route path="/week" element={<WeekScreen />} />
@@ -29,8 +34,10 @@ export default function App() {
         <Route path="/cook/:plannedMealId" element={<CookModeScreen />} />
         <Route path="/generate" element={<GenerateScreen />} />
         <Route path="/chef" element={<ChefScreen />} />
+        <Route path="/rate" element={<RateScreen />} />
+        <Route path="/rate/return" element={<RateReturnScreen />} />
       </Routes>
-      {!inCookMode && <TabBar />}
+      {!chromeless && <TabBar />}
     </div>
   );
 }
