@@ -45,7 +45,7 @@ export function InstallBanner() {
   }
 
   return (
-    <div className="mx-4 mt-[max(0.75rem,env(safe-area-inset-top))] flex items-start gap-3 rounded-2xl bg-primary p-3.5 text-white">
+    <div className="mx-4 mt-[max(0.75rem,env(safe-area-inset-top))] flex items-start gap-3 rounded-2xl bg-primary p-3.5 text-on-strong">
       <div className="min-w-0 flex-1 text-sm">
         <p className="font-bold">Install Family Meal OS</p>
         {isIos() ? (
@@ -56,7 +56,7 @@ export function InstallBanner() {
         ) : (
           <button
             onClick={() => void installEvent?.prompt()}
-            className="mt-1.5 min-h-11 cursor-pointer rounded-lg bg-white px-4 font-bold text-primary"
+            className="mt-1.5 min-h-11 cursor-pointer rounded-lg bg-on-strong px-4 font-bold text-primary"
           >
             Install app
           </button>
@@ -65,7 +65,7 @@ export function InstallBanner() {
       <button
         onClick={dismiss}
         aria-label="Dismiss install banner"
-        className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-white/80"
+        className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-on-strong/80"
       >
         <IconX size={18} />
       </button>

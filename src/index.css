@@ -1,19 +1,23 @@
 @import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800&family=Varela+Round&display=swap');
 @import 'tailwindcss';
 
+/* Dark theme — warm near-black surfaces keeping the terracotta identity.
+   Strong (filled) elements use light terracotta/green with dark "on-strong"
+   text for WCAG contrast. */
 @theme {
-  --color-primary: #9a3412;
-  --color-primary-strong: #7c2d12;
-  --color-secondary: #c2410c;
-  --color-accent: #059669;
-  --color-cream: #fffbeb;
-  --color-ink: #1c1917;
-  --color-ink-soft: #57534e;
-  --color-surface: #ffffff;
-  --color-mist: #f8f2f0;
-  --color-line: #f2e6e2;
-  --color-danger: #dc2626;
-  --color-danger-soft: #fef2f2;
+  --color-primary: #f08c5a;
+  --color-primary-strong: #f6a97e;
+  --color-secondary: #f2a662;
+  --color-accent: #57c88a;
+  --color-cream: #191412;
+  --color-ink: #f4ede6;
+  --color-ink-soft: #b0a49a;
+  --color-surface: #231c17;
+  --color-mist: #2d251f;
+  --color-line: #3a2f28;
+  --color-danger: #f87171;
+  --color-danger-soft: #3a2020;
+  --color-on-strong: #241309;
 
   --font-display: 'Varela Round', ui-rounded, system-ui, sans-serif;
   --font-sans: 'Nunito Sans', system-ui, -apple-system, sans-serif;
@@ -21,6 +25,7 @@
 
 html {
   background: var(--color-cream);
+  color-scheme: dark; /* native inputs (time pickers, selects) render dark */
 }
 
 body {

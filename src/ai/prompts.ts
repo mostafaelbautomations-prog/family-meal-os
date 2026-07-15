@@ -148,16 +148,16 @@ Reply with a single JSON object and nothing else: no prose, no markdown fences, 
       "method": "airfryer|stove|oven|grill|slowcook|nocook",
       "ingredients": [ { "name": "lowercase singular", "quantity": 500, "unit": "g", "isStaple": false, "optional": false } ],
       "prepSteps": [ { "order": 1, "instruction": "...", "offsetMinutes": -600, "type": "advance" }, { "order": 2, "instruction": "...", "offsetMinutes": -30, "durationMinutes": 15, "type": "cook" } ],
-      "nutrition": { "caloriesPerServing": 550, "proteinPerServing": 45 }
+      "nutrition": { "caloriesPerServing": 550, "proteinPerServing": 45, "carbsPerServing": 40, "fatPerServing": 20 }
     }
   ],
   "recipeAdjustments": [
-    { "recipeId": "...", "changes": { "ingredients": [ ... complete array ... ], "prepSteps": [ ... complete array ... ] }, "summary": "Reduced salt 2tsp→1tsp", "triggeringFeedback": "Wed: 'too salty'" }
+    { "recipeId": "...", "changes": { "ingredients": [ ... complete array ... ], "prepSteps": [ ... complete array ... ], "nutrition": { ... re-estimated when ingredients change ... } }, "summary": "Reduced salt 2tsp→1tsp", "triggeringFeedback": "Wed: 'too salty'" }
   ],
   "retirements": [ { "recipeId": "...", "reason": "..." } ],
   "profileUpdates": [ { "personId": "...", "likes": [...], "dislikes": [...], "patterns": [...] } ],
   "rationale": "Plain-language summary of everything you changed and why"
 }
 
-prepSteps rules: offsetMinutes is relative to serve time (negative = before). type "advance" = defrosting (-480 to -720), marinating (-120 to -180), soaking (-240) — things done hours ahead. type "cook" = the cooking sequence, offsets within -90 to 0. Every recipe with frozen meat needs a defrost advance step. Nutrition is a rough estimate per serving.`;
+prepSteps rules: offsetMinutes is relative to serve time (negative = before). type "advance" = defrosting (-480 to -720), marinating (-120 to -180), soaking (-240) — things done hours ahead. type "cook" = the cooking sequence, offsets within -90 to 0. Every recipe with frozen meat needs a defrost advance step. Nutrition is a rough per-serving estimate with all four fields (calories, protein, carbs, fat); whenever an adjustment changes ingredients, re-estimate and include nutrition in that adjustment's changes.`;
 }

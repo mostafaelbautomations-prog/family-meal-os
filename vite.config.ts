@@ -18,8 +18,8 @@ export default defineConfig({
         name: 'Family Meal OS',
         short_name: 'MealOS',
         description: 'Self-improving family meal planner',
-        theme_color: '#9A3412',
-        background_color: '#FFFBEB',
+        theme_color: '#191412',
+        background_color: '#191412',
         display: 'standalone',
         start_url: '.',
         icons: [

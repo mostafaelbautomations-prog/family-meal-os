@@ -62,15 +62,17 @@ function firstText(data: ApiResponse): string {
   return block.text;
 }
 
-/** One generation call. max_tokens must stay ≥ 4000 (the JSON reply is large). */
-export async function callClaudeForPlan(prompt: string, apiKey: string): Promise<string> {
+/** One generation call. max_tokens must stay ≥ 4000 (JSON replies are large). */
+export async function callClaude(prompt: string, apiKey: string, maxTokens = 8192): Promise<string> {
   const data = await post(apiKey, {
     model: MODEL,
-    max_tokens: 8192,
+    max_tokens: maxTokens,
     messages: [{ role: 'user', content: prompt }],
   });
   return firstText(data);
 }
+
+export const callClaudeForPlan = callClaude;
 
 /** Cheap connectivity/key check for Settings. */
 export async function testConnection(apiKey: string): Promise<{ ok: true } | { ok: false; error: string }> {

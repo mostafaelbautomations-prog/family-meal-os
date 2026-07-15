@@ -11,6 +11,8 @@ export type CookMethod = 'airfryer' | 'stove' | 'oven' | 'grill' | 'slowcook' | 
 export interface NutritionEstimate {
   caloriesPerServing: number; // rounded to nearest 25
   proteinPerServing: number; // grams, rounded to nearest 5
+  carbsPerServing?: number; // grams, rounded to nearest 5 (optional: pre-v2 rows lack it)
+  fatPerServing?: number; // grams, rounded to nearest 5 (optional: pre-v2 rows lack it)
   confidence: 'rough';
 }
 

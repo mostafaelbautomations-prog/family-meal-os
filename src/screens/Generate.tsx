@@ -115,7 +115,7 @@ export function GenerateScreen() {
 
       {stage.kind === 'accepted' && (
         <Card className="flex flex-col items-center gap-3 py-8 text-center">
-          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-accent text-white">
+          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-accent text-on-strong">
             <IconCheck size={28} strokeWidth={3} />
           </span>
           <p className="font-display text-lg">Next week is set!</p>
@@ -174,7 +174,7 @@ function IdleStage({
           <button
             onClick={onStartLive}
             disabled={!hasKey}
-            className="flex min-h-14 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-primary font-display text-lg text-white disabled:opacity-40"
+            className="flex min-h-14 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-primary font-display text-lg text-on-strong disabled:opacity-40"
           >
             <IconSparkles size={20} /> Generate next week
           </button>
@@ -238,7 +238,7 @@ function ManualFlow({ prompt, onDraft }: { prompt: string; onDraft: (draft: Engi
       </ol>
       <button
         onClick={() => void copyPrompt()}
-        className="flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-secondary font-semibold text-white"
+        className="flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-secondary font-semibold text-on-strong"
       >
         <IconCopy size={18} /> {copied ? 'Copied!' : 'Copy prompt'}
       </button>
@@ -253,7 +253,7 @@ function ManualFlow({ prompt, onDraft }: { prompt: string; onDraft: (draft: Engi
       <button
         onClick={() => void importReply()}
         disabled={!pasted.trim()}
-        className="mt-2 flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary font-semibold text-white disabled:opacity-40"
+        className="mt-2 flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary font-semibold text-on-strong disabled:opacity-40"
       >
         Import plan
       </button>
@@ -379,7 +379,7 @@ function ReviewStage({
       <button
         onClick={() => void handleAccept()}
         disabled={accepting}
-        className="flex min-h-14 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-accent font-display text-lg text-white disabled:opacity-50"
+        className="flex min-h-14 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-accent font-display text-lg text-on-strong disabled:opacity-50"
       >
         <IconCheck size={20} /> {accepting ? 'Saving…' : 'Accept plan'}
       </button>

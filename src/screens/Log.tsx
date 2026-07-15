@@ -201,7 +201,7 @@ function FeedbackForm({
                     aria-checked={e.ateAmount === opt.value}
                     onClick={() => patch(person.id, { ateAmount: opt.value })}
                     className={`min-h-11 cursor-pointer rounded-lg text-xs font-bold ${
-                      e.ateAmount === opt.value ? 'bg-primary text-white' : 'bg-mist text-ink-soft'
+                      e.ateAmount === opt.value ? 'bg-primary text-on-strong' : 'bg-mist text-ink-soft'
                     }`}
                   >
                     {opt.label}
@@ -263,7 +263,7 @@ function FeedbackForm({
         <button
           onClick={() => void save()}
           disabled={!complete || saving}
-          className="flex min-h-14 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-primary font-display text-lg text-white disabled:opacity-40"
+          className="flex min-h-14 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-primary font-display text-lg text-on-strong disabled:opacity-40"
         >
           <IconCheck size={20} /> {saving ? 'Saving…' : 'Save feedback'}
         </button>
@@ -392,7 +392,7 @@ function FilterChip({
     <button
       onClick={onClick}
       className={`min-h-10 cursor-pointer rounded-full px-3.5 text-sm font-bold ${
-        active ? 'bg-primary text-white' : 'bg-mist text-ink-soft'
+        active ? 'bg-primary text-on-strong' : 'bg-mist text-ink-soft'
       }`}
     >
       {children}

@@ -225,6 +225,9 @@ export async function acceptDraft(draft: EngineDraft): Promise<string> {
         if (adj.changes.ingredients) {
           patch.ingredients = adj.changes.ingredients as RecipeIngredient[];
         }
+        if (adj.changes.nutrition) {
+          patch.nutrition = { ...adj.changes.nutrition, confidence: 'rough' };
+        }
         if (adj.changes.prepSteps) {
           patch.prepSteps = adj.changes.prepSteps.map(
             (s): PrepStep => ({

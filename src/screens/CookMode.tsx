@@ -65,14 +65,14 @@ function CookSession({ planId, meal, recipe }: { planId: string; meal: PlannedMe
   if (finished || !step) {
     return (
       <main className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-cream px-6 text-center">
-        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-accent text-white">
+        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-accent text-on-strong">
           <IconCheck size={32} strokeWidth={3} />
         </span>
         <h1 className="font-display text-2xl">{recipe.name} is done!</h1>
         <p className="text-ink-soft">Marked as cooked. Log feedback after the meal.</p>
         <button
           onClick={() => navigate('/')}
-          className="min-h-12 cursor-pointer rounded-xl bg-primary px-6 font-semibold text-white"
+          className="min-h-12 cursor-pointer rounded-xl bg-primary px-6 font-semibold text-on-strong"
         >
           Back to Today
         </button>
@@ -123,14 +123,14 @@ function CookSession({ planId, meal, recipe }: { planId: string; meal: PlannedMe
         {index < steps.length - 1 ? (
           <button
             onClick={() => setIndex((i) => i + 1)}
-            className="flex h-14 flex-1 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-primary font-display text-lg text-white"
+            className="flex h-14 flex-1 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-primary font-display text-lg text-on-strong"
           >
             Next step <IconChevronRight size={22} />
           </button>
         ) : (
           <button
             onClick={() => void finish()}
-            className="flex h-14 flex-1 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-accent font-display text-lg text-white"
+            className="flex h-14 flex-1 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-accent font-display text-lg text-on-strong"
           >
             <IconCheck size={22} /> Done — mark cooked
           </button>
@@ -183,7 +183,7 @@ function StepTimer({ minutes }: { minutes: number }) {
       <div className="flex gap-2">
         <button
           onClick={() => setRunning((r) => !r)}
-          className="min-h-12 cursor-pointer rounded-xl bg-secondary px-6 font-semibold text-white"
+          className="min-h-12 cursor-pointer rounded-xl bg-secondary px-6 font-semibold text-on-strong"
         >
           {running ? 'Pause' : secondsLeft === total ? `Start ${minutes} min` : 'Resume'}
         </button>

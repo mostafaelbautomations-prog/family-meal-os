@@ -9,7 +9,7 @@ import type {
   Recipe,
   WeekPlan,
 } from '../types';
-import { seedDatabase } from './seed';
+import { seedDatabase, SEED_MACROS } from './seed';
 
 export class MealDB extends Dexie {
   people!: EntityTable<Person, 'id'>;
@@ -33,6 +33,24 @@ export class MealDB extends Dexie {
       profiles: 'personId',
       settings: 'id',
     });
+
+    // v2: nutrition gains carbs/fat. Additive-only backfill of the seed
+    // recipes' hand-checked values — no row is removed or reshaped, so
+    // existing data and old backups stay fully compatible.
+    this.version(2)
+      .stores({})
+      .upgrade(async (tx) => {
+        await tx
+          .table('recipes')
+          .toCollection()
+          .modify((recipe: { id: string; nutrition?: Record<string, unknown> }) => {
+            const macros = SEED_MACROS[recipe.id];
+            if (macros && recipe.nutrition && recipe.nutrition.carbsPerServing === undefined) {
+              recipe.nutrition.carbsPerServing = macros.carbs;
+              recipe.nutrition.fatPerServing = macros.fat;
+            }
+          });
+      });
 
     // First-run seed: people, Week 1 plan + recipes, staples, settings.
     this.on('populate', () => seedDatabase(this));

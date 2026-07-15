@@ -10,6 +10,7 @@ import { SettingsScreen } from './screens/Settings';
 import { RecipeDetailScreen } from './screens/RecipeDetail';
 import { CookModeScreen } from './screens/CookMode';
 import { GenerateScreen } from './screens/Generate';
+import { ChefScreen } from './screens/Chef';
 
 export default function App() {
   const location = useLocation();
@@ -27,6 +28,7 @@ export default function App() {
         <Route path="/recipe/:id" element={<RecipeDetailScreen />} />
         <Route path="/cook/:plannedMealId" element={<CookModeScreen />} />
         <Route path="/generate" element={<GenerateScreen />} />
+        <Route path="/chef" element={<ChefScreen />} />
       </Routes>
       {!inCookMode && <TabBar />}
     </div>

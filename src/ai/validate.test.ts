@@ -122,13 +122,31 @@ describe('parseEngineResponse', () => {
       method: 'stove',
       ingredients: [{ name: 'chicken', quantity: 500, unit: 'g' }],
       prepSteps: [{ order: 1, instruction: 'cook', offsetMinutes: -30, type: 'cook' }],
-      nutrition: { caloriesPerServing: 500, proteinPerServing: 40 },
+      nutrition: { caloriesPerServing: 500, proteinPerServing: 40, carbsPerServing: 30, fatPerServing: 20 },
     };
     r.newRecipes = [newRecipe, newRecipe, newRecipe] as never;
     expect(parseEngineResponse(JSON.stringify(r), ctx).ok).toBe(false);
   });
 
-  it('normalizes ingredient names and rounds nutrition on new recipes', () => {
+  it('rejects new recipes missing carbs/fat macros', () => {
+    const r = validResponse();
+    r.newRecipes = [
+      {
+        name: 'X',
+        description: '',
+        method: 'stove',
+        ingredients: [{ name: 'chicken', quantity: 500, unit: 'g' }],
+        prepSteps: [{ order: 1, instruction: 'cook', offsetMinutes: -30, type: 'cook' }],
+        nutrition: { caloriesPerServing: 500, proteinPerServing: 40 },
+      },
+    ] as never;
+    r.weekPlan.days[0].meals[0] = meal('new:0', 'main');
+    const result = parseEngineResponse(JSON.stringify(r), ctx);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain('carbsPerServing');
+  });
+
+  it('normalizes ingredient names and rounds all four macros on new recipes', () => {
     const r = validResponse();
     r.newRecipes = [
       {
@@ -137,7 +155,7 @@ describe('parseEngineResponse', () => {
         method: 'stove',
         ingredients: [{ name: '  Brown Lentils ', quantity: 300, unit: 'g' }],
         prepSteps: [{ order: 1, instruction: 'simmer', offsetMinutes: -40, durationMinutes: 30, type: 'cook' }],
-        nutrition: { caloriesPerServing: 512, proteinPerServing: 23 },
+        nutrition: { caloriesPerServing: 512, proteinPerServing: 23, carbsPerServing: 68, fatPerServing: 12 },
       },
     ] as never;
     r.weekPlan.days[0].meals[0] = meal('new:0', 'main');
@@ -145,9 +163,27 @@ describe('parseEngineResponse', () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.data.newRecipes[0].ingredients[0].name).toBe('brown lentil');
-      expect(result.data.newRecipes[0].nutrition.caloriesPerServing).toBe(500);
-      expect(result.data.newRecipes[0].nutrition.proteinPerServing).toBe(25);
+      expect(result.data.newRecipes[0].nutrition).toEqual({
+        caloriesPerServing: 500,
+        proteinPerServing: 25,
+        carbsPerServing: 70,
+        fatPerServing: 10,
+      });
     }
+  });
+
+  it('rejects adjustments that change ingredients without re-estimated nutrition', () => {
+    const r = validResponse();
+    r.recipeAdjustments = [
+      {
+        recipeId: 'r1',
+        changes: { ingredients: [{ name: 'chicken', quantity: 500, unit: 'g' }] },
+        summary: 'less salt',
+      },
+    ] as never;
+    const result = parseEngineResponse(JSON.stringify(r), ctx);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain('nutrition');
   });
 
   it('rejects adjustments with empty changes', () => {

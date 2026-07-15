@@ -64,7 +64,7 @@ export function GroceryScreen() {
           onClick={() => void quickAdd()}
           disabled={!draft.trim()}
           aria-label="Add to list"
-          className="flex h-12 w-12 cursor-pointer items-center justify-center rounded-xl bg-primary text-white disabled:opacity-40"
+          className="flex h-12 w-12 cursor-pointer items-center justify-center rounded-xl bg-primary text-on-strong disabled:opacity-40"
         >
           <IconPlus size={22} />
         </button>
@@ -169,7 +169,7 @@ function GroceryRow({ item }: { item: GroceryItem }) {
       >
         <span
           className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 ${
-            bought ? 'border-accent bg-accent text-white' : 'border-line'
+            bought ? 'border-accent bg-accent text-on-strong' : 'border-line'
           }`}
         >
           {bought ? <IconCheck size={16} strokeWidth={3} /> : null}
@@ -199,9 +199,9 @@ const LEVELS: { value: StapleLevel; label: string }[] = [
 ];
 
 const LEVEL_ACTIVE: Record<StapleLevel, string> = {
-  stocked: 'bg-accent text-white',
-  low: 'bg-secondary text-white',
-  out: 'bg-danger text-white',
+  stocked: 'bg-accent text-on-strong',
+  low: 'bg-secondary text-on-strong',
+  out: 'bg-danger text-on-strong',
 };
 
 function StaplesPanel({ staples }: { staples: { id: string; name: string; level: StapleLevel }[] }) {

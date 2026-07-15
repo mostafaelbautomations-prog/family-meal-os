@@ -1,14 +1,28 @@
-// Recipe detail: ingredients, steps, nutrition, version history.
+// Recipe detail: macros, ingredients, steps, version history — plus the live
+// recipe alterer ("Tweak with AI"): chat that instantly applies changes as a
+// new version with a changelog entry.
 
+import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Card, Screen } from '../components/Screen';
-import { recipesRepo } from '../db/repo';
-import { IconChevronLeft } from '../components/Icons';
+import { ChatSheet, type ParsedChat } from '../components/ChatSheet';
+import { applyRecipeChatUpdate, recipesRepo } from '../db/repo';
+import {
+  buildRecipeChatPrompt,
+  parseRecipeChatReply,
+  type ChatTurn,
+  type RecipeChatReply,
+} from '../ai/chat';
+import { formatMacros } from '../lib/nutrition';
+import { IconCheck, IconChevronLeft, IconSparkles } from '../components/Icons';
+
+type TweakPayload = NonNullable<RecipeChatReply['updatedRecipe']>;
 
 export function RecipeDetailScreen() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [chatOpen, setChatOpen] = useState(false);
   const recipe = useLiveQuery(() => (id ? recipesRepo.byId(id) : undefined), [id]);
 
   if (!recipe) {
@@ -17,6 +31,18 @@ export function RecipeDetailScreen() {
         <Card><p className="text-ink-soft">Recipe not found.</p></Card>
       </Screen>
     );
+  }
+
+  async function buildPrompt(history: ChatTurn[], userMessage: string): Promise<string> {
+    const fresh = await recipesRepo.byId(id!);
+    if (!fresh) throw new Error('Recipe disappeared');
+    return buildRecipeChatPrompt(fresh, history, userMessage);
+  }
+
+  function parse(raw: string): { ok: true; data: ParsedChat<TweakPayload> } | { ok: false; error: string } {
+    const result = parseRecipeChatReply(raw);
+    if (!result.ok) return result;
+    return { ok: true, data: { reply: result.data.reply, payload: result.data.updatedRecipe } };
   }
 
   return (
@@ -35,9 +61,15 @@ export function RecipeDetailScreen() {
         </p>
       )}
       <p className="mt-2 text-sm font-semibold text-secondary">
-        ≈ {recipe.nutrition.caloriesPerServing} kcal · ≈ {recipe.nutrition.proteinPerServing}g protein /
-        serving <span className="font-normal text-ink-soft">(rough estimate)</span>
+        {formatMacros(recipe.nutrition)} <span className="font-normal text-ink-soft">/ serving (rough)</span>
       </p>
+
+      <button
+        onClick={() => setChatOpen(true)}
+        className="mt-4 flex min-h-13 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-primary py-3 font-display text-on-strong"
+      >
+        <IconSparkles size={20} /> Tweak with AI
+      </button>
 
       <h2 className="mt-5 mb-2 font-display text-lg">Ingredients</h2>
       <Card>
@@ -101,6 +133,31 @@ export function RecipeDetailScreen() {
           </ul>
         )}
       </Card>
+
+      {chatOpen && (
+        <ChatSheet<TweakPayload>
+          title={`Tweak: ${recipe.name}`}
+          intro="Tell me how you want this dish different — spicier, crispier, richer, lighter, a different tool — or just ask a question. Changes apply instantly and land in the version history."
+          placeholder="Make it spicier, I have…"
+          suggestions={[
+            'Make this spicier — I have chili flakes and fresh garlic',
+            'I want it crispy and charred, not soft and juicy',
+            'This seems too light — make it more calorie-dense but still healthy',
+            'Can I make this in the airfryer instead?',
+          ]}
+          buildPrompt={buildPrompt}
+          parseReply={parse}
+          onPayload={async (payload) => {
+            await applyRecipeChatUpdate(recipe.id, payload);
+          }}
+          renderPayload={(payload) => (
+            <p className="flex items-center gap-1.5 rounded-lg bg-accent/15 px-2.5 py-1.5 text-xs font-bold text-accent">
+              <IconCheck size={14} strokeWidth={3} /> Recipe updated — {payload.changeSummary}
+            </p>
+          )}
+          onClose={() => setChatOpen(false)}
+        />
+      )}
     </main>
   );
 }

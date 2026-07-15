@@ -9,6 +9,7 @@ import { Card, Screen } from '../components/Screen';
 import { recipesRepo, weekPlansRepo } from '../db/repo';
 import { generationUnlocked, loadDraft } from '../ai/engine';
 import { formatDayLabel, isToday } from '../lib/dates';
+import { formatMacrosCompact } from '../lib/nutrition';
 import type { MealStatus, Recipe } from '../types';
 import { IconSparkles, IconSwap, IconX } from '../components/Icons';
 
@@ -49,16 +50,25 @@ export function WeekScreen() {
     if (!data) return undefined;
     let kcal = 0;
     let protein = 0;
+    let carbs = 0;
+    let fat = 0;
     for (const day of data.plan.days) {
       for (const meal of day.meals) {
         const r = data.recipes.get(meal.recipeId);
         if (r && meal.status !== 'skipped') {
           kcal += r.nutrition.caloriesPerServing;
           protein += r.nutrition.proteinPerServing;
+          carbs += r.nutrition.carbsPerServing ?? 0;
+          fat += r.nutrition.fatPerServing ?? 0;
         }
       }
     }
-    return { kcal: Math.round(kcal / 7 / 25) * 25, protein: Math.round(protein / 7 / 5) * 5 };
+    return {
+      kcal: Math.round(kcal / 7 / 25) * 25,
+      protein: Math.round(protein / 7 / 5) * 5,
+      carbs: Math.round(carbs / 7 / 5) * 5,
+      fat: Math.round(fat / 7 / 5) * 5,
+    };
   })();
 
   return (
@@ -74,9 +84,9 @@ export function WeekScreen() {
           to="/generate"
           className={`mb-3 flex min-h-13 items-center justify-center gap-2 rounded-2xl py-3 font-display ${
             data.hasDraft
-              ? 'bg-accent text-white'
+              ? 'bg-accent text-on-strong'
               : data.unlocked
-                ? 'bg-primary text-white'
+                ? 'bg-primary text-on-strong'
                 : 'bg-mist text-ink-soft'
           }`}
         >
@@ -96,22 +106,26 @@ export function WeekScreen() {
         {data?.plan.days.map((day) => {
           let dayKcal = 0;
           let dayProtein = 0;
+          let dayCarbs = 0;
+          let dayFat = 0;
           for (const meal of day.meals) {
             const r = data.recipes.get(meal.recipeId);
             if (r && meal.status !== 'skipped') {
               dayKcal += r.nutrition.caloriesPerServing;
               dayProtein += r.nutrition.proteinPerServing;
+              dayCarbs += r.nutrition.carbsPerServing ?? 0;
+              dayFat += r.nutrition.fatPerServing ?? 0;
             }
           }
           return (
-            <Card key={day.date} className={isToday(day.date) ? 'border-primary/40 bg-primary/[0.03]' : ''}>
+            <Card key={day.date} className={isToday(day.date) ? 'border-primary/40 bg-primary/[0.08]' : ''}>
               <div className="mb-2 flex items-baseline justify-between">
                 <p className="text-xs font-bold tracking-wide text-secondary uppercase">
                   {formatDayLabel(day.date)}
                   {isToday(day.date) && ' · Today'}
                 </p>
-                <p className="text-xs text-ink-soft">
-                  ≈ {dayKcal} kcal · {dayProtein}g
+                <p className="text-xs text-ink-soft tabular-nums">
+                  ≈ {dayKcal} kcal · P{dayProtein} C{dayCarbs} F{dayFat}
                 </p>
               </div>
               <ul className="flex flex-col gap-1">
@@ -159,8 +173,8 @@ export function WeekScreen() {
 
         {weeklyAvg && (
           <p className="text-center text-xs text-ink-soft">
-            Weekly average ≈ {weeklyAvg.kcal} kcal · {weeklyAvg.protein}g protein per person per day.
-            Estimates are rough.
+            Weekly average ≈ {weeklyAvg.kcal} kcal · {weeklyAvg.protein}g protein · {weeklyAvg.carbs}g
+            carbs · {weeklyAvg.fat}g fat per person per day. Estimates are rough.
           </p>
         )}
       </div>
@@ -215,7 +229,7 @@ function SwapSheet({
               >
                 <span className="block font-semibold">{r.name}</span>
                 <span className="block text-xs text-ink-soft">
-                  ≈ {r.nutrition.caloriesPerServing} kcal · {r.nutrition.proteinPerServing}g protein · {r.method}
+                  {formatMacrosCompact(r.nutrition)} · {r.method}
                 </span>
               </button>
             </li>

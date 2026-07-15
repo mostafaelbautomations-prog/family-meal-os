@@ -179,7 +179,7 @@ function ProfileEditor({
       <div className="flex gap-2">
         <button
           onClick={() => void save()}
-          className="min-h-11 flex-1 cursor-pointer rounded-lg bg-primary font-semibold text-white"
+          className="min-h-11 flex-1 cursor-pointer rounded-lg bg-primary font-semibold text-on-strong"
         >
           Save
         </button>
@@ -384,7 +384,7 @@ function AiSection({ aiMode }: { aiMode: 'live' | 'manual' }) {
                 setKeyDraft('');
                 setSavedTick(true);
               }}
-              className="min-h-11 cursor-pointer rounded-lg bg-primary px-4 font-semibold text-white disabled:opacity-40"
+              className="min-h-11 cursor-pointer rounded-lg bg-primary px-4 font-semibold text-on-strong disabled:opacity-40"
             >
               Save
             </button>
@@ -450,7 +450,7 @@ function BackupSection() {
       <div className="flex gap-2">
         <button
           onClick={() => void downloadBackup()}
-          className="flex min-h-12 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary font-semibold text-white"
+          className="flex min-h-12 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary font-semibold text-on-strong"
         >
           <IconDownload size={18} /> Export
         </button>

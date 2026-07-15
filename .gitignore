@@ -7,3 +7,4 @@ dev-dist/
 credentials.json
 token.json
 .DS_Store
+*.tsbuildinfo

@@ -6,6 +6,7 @@
 import type { CookMethod, MealSlot, PrepStepType, RecipeIngredient } from '../types';
 import { normalizeIngredientName } from '../lib/normalize';
 import { isWeekendDate } from '../lib/dates';
+import { roundGrams, roundKcal } from '../lib/nutrition';
 
 // --- Validated response shape ------------------------------------------------
 
@@ -13,6 +14,13 @@ export interface EngineMealRef {
   recipeRef: string; // "existing:<id>" | "new:<index>"
   slot: MealSlot;
   serveTimeSuggestion?: string;
+}
+
+export interface EngineNutrition {
+  caloriesPerServing: number;
+  proteinPerServing: number;
+  carbsPerServing: number;
+  fatPerServing: number;
 }
 
 export interface EngineNewRecipe {
@@ -28,7 +36,7 @@ export interface EngineNewRecipe {
     durationMinutes?: number;
     type: PrepStepType;
   }[];
-  nutrition: { caloriesPerServing: number; proteinPerServing: number };
+  nutrition: EngineNutrition;
 }
 
 export interface EngineAdjustment {
@@ -36,6 +44,7 @@ export interface EngineAdjustment {
   changes: {
     ingredients?: RecipeIngredient[];
     prepSteps?: EngineNewRecipe['prepSteps'];
+    nutrition?: EngineNutrition;
   };
   summary: string;
   triggeringFeedback?: string;
@@ -144,8 +153,16 @@ export function parseEngineResponse(raw: string, ctx: ValidationContext): ParseR
       if (typeof steps === 'string') return fail(steps);
       changes.prepSteps = steps;
     }
-    if (!changes.ingredients && !changes.prepSteps) {
-      return fail(`${label}.changes must include "ingredients" and/or "prepSteps".`);
+    if (a.changes.nutrition !== undefined) {
+      const nutrition = validateNutrition(a.changes.nutrition, `${label}.changes.nutrition`);
+      if (typeof nutrition === 'string') return fail(nutrition);
+      changes.nutrition = nutrition;
+    }
+    if (changes.ingredients && !changes.nutrition) {
+      return fail(`${label}.changes changed ingredients — include re-estimated "nutrition" too.`);
+    }
+    if (!changes.ingredients && !changes.prepSteps && !changes.nutrition) {
+      return fail(`${label}.changes must include "ingredients", "prepSteps" and/or "nutrition".`);
     }
     recipeAdjustments.push({
       recipeId: a.recipeId,
@@ -267,7 +284,26 @@ function validateRecipeRef(
   return `recipeRef "${ref}" must be "existing:<id>" or "new:<index>".`;
 }
 
-function validateIngredients(v: unknown, label: string): RecipeIngredient[] | string {
+export function validateNutrition(v: unknown, label: string): EngineNutrition | string {
+  if (
+    !isRecord(v) ||
+    typeof v.caloriesPerServing !== 'number' ||
+    typeof v.proteinPerServing !== 'number' ||
+    typeof v.carbsPerServing !== 'number' ||
+    typeof v.fatPerServing !== 'number'
+  ) {
+    return `${label} needs numeric "caloriesPerServing", "proteinPerServing", "carbsPerServing", "fatPerServing".`;
+  }
+  // hard rule #7: nutrition is rough — kcal to 25, grams to 5
+  return {
+    caloriesPerServing: roundKcal(v.caloriesPerServing),
+    proteinPerServing: roundGrams(v.proteinPerServing),
+    carbsPerServing: roundGrams(v.carbsPerServing),
+    fatPerServing: roundGrams(v.fatPerServing),
+  };
+}
+
+export function validateIngredients(v: unknown, label: string): RecipeIngredient[] | string {
   if (!Array.isArray(v) || v.length === 0) return `${label} must be a non-empty array.`;
   const out: RecipeIngredient[] = [];
   for (let i = 0; i < v.length; i++) {
@@ -292,7 +328,7 @@ function validateIngredients(v: unknown, label: string): RecipeIngredient[] | st
   return out;
 }
 
-function validatePrepSteps(v: unknown, label: string): EngineNewRecipe['prepSteps'] | string {
+export function validatePrepSteps(v: unknown, label: string): EngineNewRecipe['prepSteps'] | string {
   if (!Array.isArray(v) || v.length === 0) return `${label} must be a non-empty array.`;
   const out: EngineNewRecipe['prepSteps'] = [];
   for (let i = 0; i < v.length; i++) {
@@ -322,7 +358,7 @@ function validatePrepSteps(v: unknown, label: string): EngineNewRecipe['prepStep
   return out;
 }
 
-function validateNewRecipe(v: unknown, label: string): EngineNewRecipe | string {
+export function validateNewRecipe(v: unknown, label: string): EngineNewRecipe | string {
   if (!isRecord(v)) return `${label} must be an object.`;
   if (typeof v.name !== 'string' || !v.name.trim()) return `${label}.name must be a non-empty string.`;
   if (typeof v.description !== 'string') return `${label}.description must be a string.`;
@@ -333,13 +369,8 @@ function validateNewRecipe(v: unknown, label: string): EngineNewRecipe | string 
   if (typeof ingredients === 'string') return ingredients;
   const prepSteps = validatePrepSteps(v.prepSteps, `${label}.prepSteps`);
   if (typeof prepSteps === 'string') return prepSteps;
-  if (
-    !isRecord(v.nutrition) ||
-    typeof v.nutrition.caloriesPerServing !== 'number' ||
-    typeof v.nutrition.proteinPerServing !== 'number'
-  ) {
-    return `${label}.nutrition needs numeric "caloriesPerServing" and "proteinPerServing".`;
-  }
+  const nutrition = validateNutrition(v.nutrition, `${label}.nutrition`);
+  if (typeof nutrition === 'string') return nutrition;
   return {
     name: v.name.trim(),
     description: v.description,
@@ -347,10 +378,9 @@ function validateNewRecipe(v: unknown, label: string): EngineNewRecipe | string 
     method: v.method as CookMethod,
     ingredients,
     prepSteps,
-    nutrition: {
-      // hard rule #7: nutrition is rough — round kcal to 25, protein to 5
-      caloriesPerServing: Math.round(v.nutrition.caloriesPerServing / 25) * 25,
-      proteinPerServing: Math.round(v.nutrition.proteinPerServing / 5) * 5,
-    },
+    nutrition,
   };
 }
+
+// Shared by the chat validators.
+export { isRecord, isStringArray, METHODS };

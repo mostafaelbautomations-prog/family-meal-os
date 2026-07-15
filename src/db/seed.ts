@@ -54,6 +54,7 @@ function recipe(
   calories: number,
   protein: number
 ): Recipe {
+  const macros = SEED_MACROS[id];
   return {
     id,
     name,
@@ -63,7 +64,13 @@ function recipe(
     servingsBase: 4,
     ingredients,
     prepSteps,
-    nutrition: { caloriesPerServing: calories, proteinPerServing: protein, confidence: 'rough' },
+    nutrition: {
+      caloriesPerServing: calories,
+      proteinPerServing: protein,
+      carbsPerServing: macros?.carbs,
+      fatPerServing: macros?.fat,
+      confidence: 'rough',
+    },
     status: 'active',
     version: 1,
     changelog: [],
@@ -89,6 +96,24 @@ export const R = {
   cottagePitaChips: 'seed-cottage-pita-chips',
   fulDip: 'seed-ful-dip',
 } as const;
+
+/**
+ * Hand-checked rough carbs/fat per serving (grams, rounded to 5) for the seed
+ * recipes. Also used by the Dexie v2 migration to backfill existing installs.
+ */
+export const SEED_MACROS: Record<string, { carbs: number; fat: number }> = {
+  [R.beefSweetPotato]: { carbs: 35, fat: 35 },
+  [R.chickenTacos]: { carbs: 45, fat: 15 },
+  [R.tilapiaLentils]: { carbs: 45, fat: 15 },
+  [R.liverBalady]: { carbs: 35, fat: 15 },
+  [R.beefShinRice]: { carbs: 60, fat: 15 },
+  [R.shawarmaStrips]: { carbs: 40, fat: 25 },
+  [R.roastedChickpeas]: { carbs: 25, fat: 5 },
+  [R.tunaCottageBowl]: { carbs: 5, fat: 10 },
+  [R.eggBites]: { carbs: 5, fat: 15 },
+  [R.cottagePitaChips]: { carbs: 20, fat: 10 },
+  [R.fulDip]: { carbs: 25, fat: 10 },
+};
 
 function buildRecipes(): Recipe[] {
   return [

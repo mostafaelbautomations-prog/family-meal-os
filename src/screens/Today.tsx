@@ -7,13 +7,24 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Link, useNavigate } from 'react-router-dom';
 import { Card, Screen } from '../components/Screen';
-import { markIngredientRanOut, recipesRepo, weekPlansRepo, feedbackRepo } from '../db/repo';
+import { feedbackRepo, markIngredientRanOut, recipesRepo, weekPlansRepo } from '../db/repo';
 import { formatClock, formatDayLabel, todayISO } from '../lib/dates';
 import { advanceSteps, cookSteps, mealTimeline, servePassed } from '../lib/timeline';
 import { getChecks, toggleCheck } from '../lib/stepChecks';
 import { backupNudgeDue, snoozeNudge } from '../lib/backupNudge';
+import { formatMacros, formatMacrosCompact } from '../lib/nutrition';
+import { subDays, format } from 'date-fns';
 import type { PlannedMeal, Recipe } from '../types';
-import { IconAlert, IconCheck, IconChevronRight, IconDownload, IconFlame, IconX } from '../components/Icons';
+import {
+  IconAlert,
+  IconCheck,
+  IconChevronRight,
+  IconDownload,
+  IconFlame,
+  IconSparkles,
+  IconSwap,
+  IconX,
+} from '../components/Icons';
 
 const SLOT_LABEL: Record<PlannedMeal['slot'], string> = {
   main: 'Main meal',
@@ -72,6 +83,12 @@ export function TodayScreen() {
           {meals.map((tm) => (
             <MealCard key={tm.meal.id} tm={tm} date={date} now={now} />
           ))}
+          <Link
+            to="/chef"
+            className="flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-line bg-surface font-semibold text-secondary"
+          >
+            <IconSparkles size={18} /> Not feeling it? Chat with the AI chef
+          </Link>
           <p className="text-center text-xs text-ink-soft">Nutrition estimates are rough.</p>
         </div>
       )}
@@ -148,7 +165,7 @@ function AdvancePrepSection({ meals, date, now }: { meals: TodayMeal[]; date: st
                 <span
                   className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 ${
                     checked
-                      ? 'border-accent bg-accent text-white'
+                      ? 'border-accent bg-accent text-on-strong'
                       : overdue
                         ? 'border-danger'
                         : 'border-line'
@@ -174,6 +191,130 @@ function AdvancePrepSection({ meals, date, now }: { meals: TodayMeal[]; date: st
   );
 }
 
+// --- Swap today's meal (favorites / recent / all) --------------------------------
+
+function SwapTodaySheet({
+  planId,
+  meal,
+  currentName,
+  onClose,
+}: {
+  planId: string;
+  meal: PlannedMeal;
+  currentName: string;
+  onClose: () => void;
+}) {
+  const navigate = useNavigate();
+
+  const groups = useLiveQuery(async () => {
+    const [recipes, feedback] = await Promise.all([recipesRepo.active(), feedbackRepo.all()]);
+    const pool = recipes.filter((r) => r.id !== meal.recipeId);
+
+    // Average enjoyment + latest date per recipe, across all feedback.
+    const stats = new Map<string, { sum: number; count: number; latest: string }>();
+    for (const fb of feedback) {
+      const s = stats.get(fb.recipeId) ?? { sum: 0, count: 0, latest: '' };
+      for (const e of fb.entries) {
+        s.sum += e.enjoyment;
+        s.count += 1;
+      }
+      if (fb.date > s.latest) s.latest = fb.date;
+      stats.set(fb.recipeId, s);
+    }
+    const avg = (id: string) => {
+      const s = stats.get(id);
+      return s && s.count > 0 ? s.sum / s.count : 0;
+    };
+
+    const favorites = pool
+      .filter((r) => avg(r.id) >= 4)
+      .sort((a, b) => avg(b.id) - avg(a.id));
+    const cutoff = format(subDays(new Date(), 14), 'yyyy-MM-dd');
+    const favoriteIds = new Set(favorites.map((r) => r.id));
+    const recent = pool
+      .filter((r) => !favoriteIds.has(r.id) && (stats.get(r.id)?.latest ?? '') >= cutoff)
+      .sort((a, b) => (stats.get(b.id)?.latest ?? '').localeCompare(stats.get(a.id)?.latest ?? ''));
+    const shownIds = new Set([...favoriteIds, ...recent.map((r) => r.id)]);
+    const rest = pool.filter((r) => !shownIds.has(r.id)).sort((a, b) => a.name.localeCompare(b.name));
+
+    return { favorites, recent, rest };
+  }, [meal.recipeId]);
+
+  async function pick(recipeId: string) {
+    await weekPlansRepo.updateMeal(planId, meal.id, { recipeId });
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={onClose}>
+      <div
+        className="max-h-[80dvh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-label="Swap today's meal"
+      >
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-display text-lg">Instead of "{currentName}"…</h2>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-mist text-ink-soft"
+          >
+            <IconX size={20} />
+          </button>
+        </div>
+
+        <button
+          onClick={() => navigate(`/chef?meal=${meal.id}`)}
+          className="mb-4 flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-primary font-display text-on-strong"
+        >
+          <IconSparkles size={18} /> Ask the AI chef for something new
+        </button>
+
+        {groups && (
+          <>
+            <SwapGroup title="Family favorites" recipes={groups.favorites} onPick={pick} />
+            <SwapGroup title="Recently cooked" recipes={groups.recent} onPick={pick} />
+            <SwapGroup title="All recipes" recipes={groups.rest} onPick={pick} />
+            {groups.favorites.length + groups.recent.length + groups.rest.length === 0 && (
+              <p className="text-sm text-ink-soft">No other active recipes yet.</p>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SwapGroup({
+  title,
+  recipes,
+  onPick,
+}: {
+  title: string;
+  recipes: Recipe[];
+  onPick: (id: string) => void;
+}) {
+  if (recipes.length === 0) return null;
+  return (
+    <section className="mb-4">
+      <h3 className="mb-1 text-xs font-bold tracking-wide text-ink-soft uppercase">{title}</h3>
+      <ul className="flex flex-col divide-y divide-line">
+        {recipes.map((r) => (
+          <li key={r.id}>
+            <button onClick={() => onPick(r.id)} className="min-h-12 w-full cursor-pointer py-2 text-left">
+              <span className="block font-semibold">{r.name}</span>
+              <span className="block text-xs text-ink-soft">
+                {formatMacrosCompact(r.nutrition)} · {r.method}
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 // --- One meal ------------------------------------------------------------------
 
 function MealCard({ tm, date, now }: { tm: TodayMeal; date: string; now: Date }) {
@@ -181,6 +322,7 @@ function MealCard({ tm, date, now }: { tm: TodayMeal; date: string; now: Date })
   const navigate = useNavigate();
   const [, setBump] = useState(0);
   const [ranOut, setRanOut] = useState<Set<string>>(new Set());
+  const [swapOpen, setSwapOpen] = useState(false);
 
   const timeline = mealTimeline(recipe.prepSteps, date, meal.serveTime, now);
   const cooking = cookSteps(timeline);
@@ -195,9 +337,7 @@ function MealCard({ tm, date, now }: { tm: TodayMeal; date: string; now: Date })
           <Link to={`/recipe/${recipe.id}`} className="font-display text-xl leading-tight">
             {recipe.name}
           </Link>
-          <p className="mt-0.5 text-sm text-ink-soft">
-            ≈ {recipe.nutrition.caloriesPerServing} kcal · ≈ {recipe.nutrition.proteinPerServing}g protein
-          </p>
+          <p className="mt-0.5 text-sm text-ink-soft">{formatMacros(recipe.nutrition)}</p>
         </div>
         <label className="flex shrink-0 flex-col items-end text-xs font-semibold text-ink-soft">
           Serve at
@@ -212,11 +352,28 @@ function MealCard({ tm, date, now }: { tm: TodayMeal; date: string; now: Date })
         </label>
       </div>
 
+      {meal.status === 'planned' && !passed && (
+        <button
+          onClick={() => setSwapOpen(true)}
+          className="mt-2 flex min-h-11 cursor-pointer items-center gap-1.5 text-sm font-bold text-secondary"
+        >
+          <IconSwap size={16} /> Don't want this today? Swap it
+        </button>
+      )}
+      {swapOpen && (
+        <SwapTodaySheet
+          planId={planId}
+          meal={meal}
+          currentName={recipe.name}
+          onClose={() => setSwapOpen(false)}
+        />
+      )}
+
       {/* Feedback prompt once serve time passed */}
       {passed && meal.status !== 'skipped' && !tm.logged && (
         <Link
           to="/log"
-          className="mt-3 flex min-h-12 items-center justify-between rounded-xl bg-primary px-4 font-semibold text-white"
+          className="mt-3 flex min-h-12 items-center justify-between rounded-xl bg-primary px-4 font-semibold text-on-strong"
         >
           How did it go? Log feedback
           <IconChevronRight size={20} />
@@ -236,7 +393,7 @@ function MealCard({ tm, date, now }: { tm: TodayMeal; date: string; now: Date })
             {meal.status === 'planned' && (
               <button
                 onClick={() => navigate(`/cook/${meal.id}`)}
-                className="flex min-h-11 cursor-pointer items-center gap-1.5 rounded-xl bg-secondary px-4 font-semibold text-white"
+                className="flex min-h-11 cursor-pointer items-center gap-1.5 rounded-xl bg-secondary px-4 font-semibold text-on-strong"
               >
                 <IconFlame size={18} /> Cook mode
               </button>
@@ -281,7 +438,7 @@ function MealCard({ tm, date, now }: { tm: TodayMeal; date: string; now: Date })
                 >
                   <span
                     className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 ${
-                      checked ? 'border-accent bg-accent text-white' : 'border-line'
+                      checked ? 'border-accent bg-accent text-on-strong' : 'border-line'
                     }`}
                   >
                     {checked && <IconCheck size={16} strokeWidth={3} />}

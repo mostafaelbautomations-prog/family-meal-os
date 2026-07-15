@@ -253,6 +253,78 @@ export const settingsRepo = {
   update: (patch: Partial<Omit<AppSettings, 'id'>>) => db.settings.update('singleton', patch),
 };
 
+// --- AI chat write paths -----------------------------------------------------------------
+
+export interface RecipePatchFromChat {
+  name?: string;
+  description?: string;
+  method?: Recipe['method'];
+  ingredients?: Recipe['ingredients'];
+  prepSteps?: { order: number; instruction: string; offsetMinutes: number; durationMinutes?: number; type: 'advance' | 'cook' }[];
+  nutrition?: { caloriesPerServing: number; proteinPerServing: number; carbsPerServing: number; fatPerServing: number };
+  changeSummary: string;
+}
+
+/**
+ * Apply a recipe-chat adjustment: version bump + changelog append, never
+ * destructive (hard rule #4). Ingredient names arrive pre-normalized from the
+ * chat validator.
+ */
+export async function applyRecipeChatUpdate(recipeId: string, patch: RecipePatchFromChat): Promise<number> {
+  return db.transaction('rw', db.recipes, async () => {
+    const recipe = await db.recipes.get(recipeId);
+    if (!recipe) throw new Error('Recipe not found');
+    const nextVersion = recipe.version + 1;
+    const update: Partial<Recipe> = {
+      version: nextVersion,
+      updatedAt: now(),
+      changelog: [...recipe.changelog, { date: now(), source: 'ai' as const, summary: patch.changeSummary }],
+    };
+    if (patch.name) update.name = patch.name;
+    if (patch.description !== undefined) update.description = patch.description;
+    if (patch.method) update.method = patch.method;
+    if (patch.ingredients) update.ingredients = patch.ingredients;
+    if (patch.nutrition) update.nutrition = { ...patch.nutrition, confidence: 'rough' };
+    if (patch.prepSteps) {
+      update.prepSteps = patch.prepSteps.map((s) => ({ ...s, id: crypto.randomUUID() }));
+    }
+    await db.recipes.update(recipeId, update);
+    return nextVersion;
+  });
+}
+
+export interface NewRecipeSpec {
+  name: string;
+  description: string;
+  cuisineTags: string[];
+  method: Recipe['method'];
+  ingredients: Recipe['ingredients'];
+  prepSteps: { order: number; instruction: string; offsetMinutes: number; durationMinutes?: number; type: 'advance' | 'cook' }[];
+  nutrition: { caloriesPerServing: number; proteinPerServing: number; carbsPerServing: number; fatPerServing: number };
+}
+
+/** Create a recipe from an AI-produced spec (chef chat). Returns the new id. */
+export async function createRecipeFromSpec(spec: NewRecipeSpec, originNote: string): Promise<string> {
+  const id = crypto.randomUUID();
+  await db.recipes.add({
+    id,
+    name: spec.name,
+    description: spec.description,
+    cuisineTags: spec.cuisineTags,
+    method: spec.method,
+    servingsBase: 4,
+    ingredients: spec.ingredients,
+    prepSteps: spec.prepSteps.map((s) => ({ ...s, id: crypto.randomUUID() })),
+    nutrition: { ...spec.nutrition, confidence: 'rough' },
+    status: 'active',
+    version: 1,
+    changelog: [{ date: now(), source: 'ai', summary: originNote }],
+    createdAt: now(),
+    updatedAt: now(),
+  });
+  return id;
+}
+
 // --- Cross-cutting helpers --------------------------------------------------------------
 
 /** Cooked meals from the active plan with no feedback row yet (today or earlier). */
