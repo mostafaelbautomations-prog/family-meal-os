@@ -8,14 +8,17 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card } from '../components/Screen';
-import { ratingsRepo } from '../db/repo';
+import { ratingsRepo, settingsRepo } from '../db/repo';
 import {
   decodeReply,
   decodeRequest,
   replyLink,
   type RatingReply,
 } from '../lib/ratingLinks';
-import { IconCheck, IconCopy } from '../components/Icons';
+import { getApiKey } from '../lib/apiKey';
+import { runLiveReview } from '../ai/review';
+import { outcomeLine } from '../components/ReviewPanel';
+import { IconCheck, IconCopy, IconSparkles } from '../components/Icons';
 
 // --- Member-facing form ----------------------------------------------------------
 
@@ -181,6 +184,10 @@ export function RateReturnScreen() {
   const reply = useMemo(() => decodeReply(params.get('d') ?? ''), [params]);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  // Instant mode: right after saving, check whether the family now agrees on
+  // any change to this recipe (unanimous → applied on its own).
+  const [analysis, setAnalysis] = useState<'off' | 'running' | 'done'>('off');
+  const [analysisNote, setAnalysisNote] = useState('');
 
   if (!reply) {
     return (
@@ -199,10 +206,33 @@ export function RateReturnScreen() {
     try {
       await ratingsRepo.saveReply(reply!);
       setSaved(true);
-      setTimeout(() => navigate('/log'), 1200);
     } catch {
       setError("Couldn't save the rating — try tapping Save again.");
+      return;
     }
+
+    const settings = await settingsRepo.get();
+    const apiKey = getApiKey();
+    if (settings?.aiMode !== 'live' || !apiKey) {
+      setTimeout(() => navigate('/log'), 1200);
+      return;
+    }
+
+    setAnalysis('running');
+    try {
+      const res = await runLiveReview(reply!.recipeId, apiKey);
+      setAnalysisNote(
+        res.ok ? outcomeLine(res.outcome) : 'Couldn’t check the reviews right now — you can do it from the Recipes tab.'
+      );
+    } catch (err) {
+      setAnalysisNote(
+        err instanceof Error && err.message
+          ? `Couldn’t check the reviews (${err.message}) — you can do it from the Recipes tab.`
+          : 'Couldn’t check the reviews right now — you can do it from the Recipes tab.'
+      );
+    }
+    setAnalysis('done');
+    setTimeout(() => navigate('/log'), 3000);
   }
 
   return (
@@ -224,9 +254,22 @@ export function RateReturnScreen() {
           </p>
         )}
         {saved ? (
-          <p className="mt-3 flex items-center gap-1.5 font-semibold text-accent">
-            <IconCheck size={18} strokeWidth={3} /> Saved — it'll shape next week's plan
-          </p>
+          <div className="mt-3">
+            <p className="flex items-center gap-1.5 font-semibold text-accent">
+              <IconCheck size={18} strokeWidth={3} /> Saved — it'll shape next week's plan
+            </p>
+            {analysis === 'running' && (
+              <p className="mt-2 flex items-center gap-1.5 text-sm text-ink-soft">
+                <IconSparkles size={16} className="animate-pulse text-primary" /> Checking if the family
+                agrees on any changes…
+              </p>
+            )}
+            {analysis === 'done' && (
+              <p className="mt-2 flex items-start gap-1.5 text-sm font-semibold text-secondary">
+                <IconSparkles size={16} className="mt-0.5 shrink-0" /> {analysisNote}
+              </p>
+            )}
+          </div>
         ) : (
           <button
             onClick={() => void save()}

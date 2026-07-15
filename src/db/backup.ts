@@ -16,10 +16,11 @@ const TABLES = [
   'profiles',
   'settings',
   'ratings',
+  'suggestions',
 ] as const;
 
 // Tables added after v1 backups shipped — tolerated as missing on import.
-const OPTIONAL_TABLES: readonly TableName[] = ['ratings'];
+const OPTIONAL_TABLES: readonly TableName[] = ['ratings', 'suggestions'];
 
 type TableName = (typeof TABLES)[number];
 

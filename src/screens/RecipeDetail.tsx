@@ -7,23 +7,29 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Card, Screen } from '../components/Screen';
 import { ChatSheet, type ParsedChat } from '../components/ChatSheet';
-import { applyRecipeChatUpdate, recipesRepo } from '../db/repo';
+import { ReviewPanel } from '../components/ReviewPanel';
+import { applyRecipeChatUpdate, peopleRepo, profilesRepo, recipesRepo } from '../db/repo';
 import {
   buildRecipeChatPrompt,
   parseRecipeChatReply,
   type ChatTurn,
+  type PersonNote,
   type RecipeChatReply,
 } from '../ai/chat';
 import { formatMacros } from '../lib/nutrition';
 import { IconCheck, IconChevronLeft, IconSparkles } from '../components/Icons';
 
-type TweakPayload = NonNullable<RecipeChatReply['updatedRecipe']>;
+interface TweakPayload {
+  update?: RecipeChatReply['updatedRecipe'];
+  personNotes?: PersonNote[];
+}
 
 export function RecipeDetailScreen() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [chatOpen, setChatOpen] = useState(false);
   const recipe = useLiveQuery(() => (id ? recipesRepo.byId(id) : undefined), [id]);
+  const activePeople = useLiveQuery(async () => (await peopleRepo.all()).filter((p) => p.active));
 
   if (!recipe) {
     return (
@@ -34,15 +40,22 @@ export function RecipeDetailScreen() {
   }
 
   async function buildPrompt(history: ChatTurn[], userMessage: string): Promise<string> {
-    const fresh = await recipesRepo.byId(id!);
+    const [fresh, people, profiles] = await Promise.all([
+      recipesRepo.byId(id!),
+      peopleRepo.all(),
+      profilesRepo.all(),
+    ]);
     if (!fresh) throw new Error('Recipe disappeared');
-    return buildRecipeChatPrompt(fresh, history, userMessage);
+    return buildRecipeChatPrompt(fresh, { people: people.filter((p) => p.active), profiles }, history, userMessage);
   }
 
   function parse(raw: string): { ok: true; data: ParsedChat<TweakPayload> } | { ok: false; error: string } {
-    const result = parseRecipeChatReply(raw);
+    const result = parseRecipeChatReply(raw, activePeople ?? []);
     if (!result.ok) return result;
-    return { ok: true, data: { reply: result.data.reply, payload: result.data.updatedRecipe } };
+    const { reply, updatedRecipe, personNotes } = result.data;
+    const payload: TweakPayload | undefined =
+      updatedRecipe || personNotes ? { update: updatedRecipe, personNotes } : undefined;
+    return { ok: true, data: { reply, payload } };
   }
 
   return (
@@ -70,6 +83,8 @@ export function RecipeDetailScreen() {
       >
         <IconSparkles size={20} /> Tweak with AI
       </button>
+
+      <ReviewPanel recipeId={recipe.id} />
 
       <h2 className="mt-5 mb-2 font-display text-lg">Ingredients</h2>
       <Card>
@@ -148,12 +163,24 @@ export function RecipeDetailScreen() {
           buildPrompt={buildPrompt}
           parseReply={parse}
           onPayload={async (payload) => {
-            await applyRecipeChatUpdate(recipe.id, payload);
+            if (payload.update) await applyRecipeChatUpdate(recipe.id, payload.update);
+            for (const note of payload.personNotes ?? []) {
+              await profilesRepo.appendNotes(note.personId, [note.note]);
+            }
           }}
           renderPayload={(payload) => (
-            <p className="flex items-center gap-1.5 rounded-lg bg-accent/15 px-2.5 py-1.5 text-xs font-bold text-accent">
-              <IconCheck size={14} strokeWidth={3} /> Recipe updated — {payload.changeSummary}
-            </p>
+            <div className="flex flex-col gap-1">
+              {payload.update && (
+                <p className="flex items-center gap-1.5 rounded-lg bg-accent/15 px-2.5 py-1.5 text-xs font-bold text-accent">
+                  <IconCheck size={14} strokeWidth={3} /> Recipe updated — {payload.update.changeSummary}
+                </p>
+              )}
+              {payload.personNotes?.map((n, i) => (
+                <p key={i} className="flex items-center gap-1.5 rounded-lg bg-secondary/15 px-2.5 py-1.5 text-xs font-bold text-secondary">
+                  <IconCheck size={14} strokeWidth={3} /> Remembered about {n.person}: {n.note}
+                </p>
+              ))}
+            </div>
           )}
           onClose={() => setChatOpen(false)}
         />

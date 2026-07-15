@@ -143,7 +143,54 @@ export interface PersonProfile {
   likes: string[];
   dislikes: string[];
   patterns: string[];
+  /**
+   * Kitchen notes the AI must follow for this person (e.g. "plate Marwan's
+   * portion before mixing in the vegetables"). Cook-authored or learned from
+   * reviews/chats; the weekly engine's profileUpdates never touch them.
+   * Optional: pre-v4 rows lack the field.
+   */
+  notes?: string[];
   lastUpdated: string;
+}
+
+/** A partial recipe change (chat tweak or review suggestion), applied as a version bump. */
+export interface RecipePatch {
+  name?: string;
+  description?: string;
+  method?: CookMethod;
+  ingredients?: RecipeIngredient[];
+  prepSteps?: {
+    order: number;
+    instruction: string;
+    offsetMinutes: number;
+    durationMinutes?: number;
+    type: PrepStepType;
+  }[];
+  nutrition?: {
+    caloriesPerServing: number;
+    proteinPerServing: number;
+    carbsPerServing: number;
+    fatPerServing: number;
+  };
+  changeSummary: string;
+}
+
+export type SuggestionStatus = 'pending' | 'applied' | 'dismissed' | 'auto';
+
+/**
+ * A concrete recipe change distilled from family reviews. Unanimous ones are
+ * applied automatically (status 'auto'); partial-consensus ones wait as
+ * 'pending' until the cook applies or dismisses them in the Recipes tab.
+ */
+export interface RecipeSuggestion {
+  id: string;
+  recipeId: string;
+  summary: string; // short chip label, e.g. "Add more spice"
+  supporters: string[]; // personIds whose reviews back this change
+  patch: RecipePatch;
+  status: SuggestionStatus;
+  createdAt: string;
+  resolvedAt?: string;
 }
 
 // Stored in IndexedDB. The API key is deliberately NOT here — it lives in

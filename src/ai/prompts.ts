@@ -109,7 +109,8 @@ export function buildGenerationPrompt(input: GenerationInput): string {
     .map((p) => {
       const person = people.find((x) => x.id === p.personId);
       if (!person) return null;
-      return `- personId ${p.personId} (${person.name}): likes [${p.likes.join(', ')}], dislikes [${p.dislikes.join(', ')}], patterns [${p.patterns.join(', ')}]`;
+      const notes = p.notes?.length ? `, KITCHEN NOTES (cook-maintained, always follow): [${p.notes.join(' | ')}]` : '';
+      return `- personId ${p.personId} (${person.name}): likes [${p.likes.join(', ')}], dislikes [${p.dislikes.join(', ')}], patterns [${p.patterns.join(', ')}]${notes}`;
     })
     .filter(Boolean)
     .join('\n');
@@ -125,6 +126,7 @@ export function buildGenerationPrompt(input: GenerationInput): string {
 - Every meal must have a clear protein source. Target ~40–50g protein per person at mains.
 - An airfryer is available. Prefer oven/grill/stove/airfryer over deep frying.
 - Control calories via portions and oil, never by cutting protein.
+- Honour every person's KITCHEN NOTES (see profiles) inside recipe prepSteps where relevant — e.g. "plate Marwan's portion before mixing in the vegetables" becomes an actual step in affected recipes.
 
 ## Active recipes
 ${recipesBlock}
@@ -151,7 +153,7 @@ Prefer recipes that lean on stocked staples. Avoid recipes needing staples that 
 1. RETIREMENT: for each recipe marked [RETIREMENT CANDIDATE] (latest feedback: average enjoyment ≤ 2, or ≥ 2 people ate 'little' or less), decide: if notes point to a fixable cause ("too salty", "dry"), propose an adjustment instead; if the family dislikes the dish itself, retire it with a reason. Never schedule a recipe you retire.
 2. ADJUSTMENT: for recipes with fixable complaints, output a recipeAdjustments entry — changed ingredients and/or prepSteps (send the COMPLETE new arrays, not diffs), a one-line summary, and the triggering feedback.
 3. PLAN: fill every day/slot below using existing recipe ids or new recipes. Introduce AT MOST 2 brand-new recipes this week. Reuse well-loved recipes freely, vary proteins across the week.
-4. PROFILES: update every person's likes/dislikes/patterns from the accumulated feedback (send complete replacement arrays).
+4. PROFILES: update every person's likes/dislikes/patterns from the accumulated feedback (send complete replacement arrays). KITCHEN NOTES are cook-maintained — never include or rewrite them in profileUpdates.
 5. Explain everything in "rationale" in plain language addressed to the cook.
 
 ## Required schedule

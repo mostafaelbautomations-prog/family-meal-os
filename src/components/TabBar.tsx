@@ -1,9 +1,10 @@
 import { NavLink } from 'react-router-dom';
-import { IconCart, IconLog, IconSettings, IconToday, IconWeek } from './Icons';
+import { IconBook, IconCart, IconLog, IconSettings, IconToday, IconWeek } from './Icons';
 
 const TABS = [
   { to: '/', label: 'Today', Icon: IconToday },
   { to: '/week', label: 'Week', Icon: IconWeek },
+  { to: '/recipes', label: 'Recipes', Icon: IconBook },
   { to: '/log', label: 'Log', Icon: IconLog },
   { to: '/grocery', label: 'Grocery', Icon: IconCart },
   { to: '/settings', label: 'Settings', Icon: IconSettings },

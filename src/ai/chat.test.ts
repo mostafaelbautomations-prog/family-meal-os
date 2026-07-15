@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { parseChefReply, parseRecipeChatReply } from './chat';
+import type { Person } from '../types';
 
 const nutrition = { caloriesPerServing: 512, proteinPerServing: 43, carbsPerServing: 38, fatPerServing: 22 };
+
+const people: Person[] = [
+  { id: 'p-marwan', name: 'Marwan', active: true },
+  { id: 'p-mom', name: 'Mom', active: true },
+];
 
 describe('parseRecipeChatReply', () => {
   it('accepts a question answer with no changes', () => {
@@ -63,6 +69,36 @@ describe('parseRecipeChatReply', () => {
   it('rejects malformed JSON with guidance', () => {
     const result = parseRecipeChatReply('Sure! I made it spicier for you.');
     expect(result.ok).toBe(false);
+  });
+
+  it('learns durable facts about a person (case-insensitive name match)', () => {
+    const result = parseRecipeChatReply(
+      JSON.stringify({
+        reply: "Noted — I'll always keep Marwan's plate vegetable-free.",
+        updatedRecipe: null,
+        personNotes: [{ person: 'marwan', note: 'plate his portion before mixing in the vegetables' }],
+      }),
+      people
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.personNotes).toEqual([
+        { personId: 'p-marwan', person: 'Marwan', note: 'plate his portion before mixing in the vegetables' },
+      ]);
+    }
+  });
+
+  it('rejects personNotes for someone not in the family', () => {
+    const result = parseRecipeChatReply(
+      JSON.stringify({
+        reply: 'Noted.',
+        updatedRecipe: null,
+        personNotes: [{ person: 'Grandma', note: 'no onions' }],
+      }),
+      people
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain('Grandma');
   });
 });
 

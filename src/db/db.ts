@@ -8,6 +8,7 @@ import type {
   Person,
   PersonProfile,
   Recipe,
+  RecipeSuggestion,
   WeekPlan,
 } from '../types';
 import { seedDatabase, SEED_MACROS } from './seed';
@@ -22,6 +23,7 @@ export class MealDB extends Dexie {
   profiles!: EntityTable<PersonProfile, 'personId'>;
   settings!: EntityTable<AppSettings, 'id'>;
   ratings!: EntityTable<MemberRating, 'id'>;
+  suggestions!: EntityTable<RecipeSuggestion, 'id'>;
 
   constructor() {
     super('family-meal-os');
@@ -57,6 +59,12 @@ export class MealDB extends Dexie {
     // v3: family self-ratings received via share links. Purely additive.
     this.version(3).stores({
       ratings: 'id, plannedMealId, personId, date, recipeId',
+    });
+
+    // v4: review-driven recipe suggestions. Purely additive (PersonProfile
+    // gains an optional `notes` field, which needs no upgrade step).
+    this.version(4).stores({
+      suggestions: 'id, recipeId, status',
     });
 
     // First-run seed: people, Week 1 plan + recipes, staples, settings.

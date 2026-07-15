@@ -12,6 +12,7 @@ import { CookModeScreen } from './screens/CookMode';
 import { GenerateScreen } from './screens/Generate';
 import { ChefScreen } from './screens/Chef';
 import { RateScreen, RateReturnScreen } from './screens/Rate';
+import { RecipesScreen } from './screens/Recipes';
 
 export default function App() {
   const location = useLocation();
@@ -27,6 +28,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<TodayScreen />} />
         <Route path="/week" element={<WeekScreen />} />
+        <Route path="/recipes" element={<RecipesScreen />} />
         <Route path="/log" element={<LogScreen />} />
         <Route path="/grocery" element={<GroceryScreen />} />
         <Route path="/settings" element={<SettingsScreen />} />

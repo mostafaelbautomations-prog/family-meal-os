@@ -254,13 +254,16 @@ export async function acceptDraft(draft: EngineDraft): Promise<string> {
         });
       }
 
-      // 4. Profile updates.
+      // 4. Profile updates. Kitchen notes are cook-maintained: the engine's
+      // replacement arrays must never wipe them.
       for (const pu of response.profileUpdates) {
+        const existing = await db.profiles.get(pu.personId);
         await db.profiles.put({
           personId: pu.personId,
           likes: pu.likes,
           dislikes: pu.dislikes,
           patterns: pu.patterns,
+          notes: existing?.notes ?? [],
           lastUpdated: now,
         });
       }

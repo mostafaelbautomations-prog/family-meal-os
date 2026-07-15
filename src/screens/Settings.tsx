@@ -114,6 +114,7 @@ function ProfilesSection({ people, profiles }: { people: Person[]; profiles: Per
               <ProfileLine label="Likes" items={profile.likes} />
               <ProfileLine label="Dislikes" items={profile.dislikes} />
               <ProfileLine label="Patterns" items={profile.patterns} />
+              <ProfileLine label="Kitchen notes" items={profile.notes ?? []} />
             </div>
           );
         })}
@@ -143,6 +144,7 @@ function ProfileEditor({
   const [likes, setLikes] = useState(profile.likes.join(', '));
   const [dislikes, setDislikes] = useState(profile.dislikes.join(', '));
   const [patterns, setPatterns] = useState(profile.patterns.join(', '));
+  const [notes, setNotes] = useState((profile.notes ?? []).join('\n'));
 
   const split = (s: string) => s.split(',').map((x) => x.trim()).filter(Boolean);
 
@@ -152,6 +154,7 @@ function ProfileEditor({
       likes: split(likes),
       dislikes: split(dislikes),
       patterns: split(patterns),
+      notes: notes.split('\n').map((x) => x.trim()).filter(Boolean),
       lastUpdated: new Date().toISOString(),
     });
     onDone();
@@ -176,6 +179,16 @@ function ProfileEditor({
           />
         </label>
       ))}
+      <label className="mb-2 block text-sm">
+        <span className="font-semibold text-ink-soft">Kitchen notes — rules the AI always follows (one per line)</span>
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          rows={3}
+          placeholder={'e.g. plate his portion before mixing in the vegetables'}
+          className="mt-1 w-full rounded-lg border border-line bg-surface p-3"
+        />
+      </label>
       <div className="flex gap-2">
         <button
           onClick={() => void save()}

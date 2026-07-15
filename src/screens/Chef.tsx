@@ -14,15 +14,21 @@ import {
   weekPlansRepo,
   type NewRecipeSpec,
 } from '../db/repo';
-import { buildChefPrompt, parseChefReply, type ChatTurn } from '../ai/chat';
+import { buildChefPrompt, parseChefReply, type ChatTurn, type PersonNote } from '../ai/chat';
 import { formatMacrosCompact } from '../lib/nutrition';
 import { todayISO } from '../lib/dates';
 import { IconCheck } from '../components/Icons';
+
+interface ChefPayload {
+  recipe?: NewRecipeSpec;
+  personNotes?: PersonNote[];
+}
 
 export function ChefScreen() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const targetMealId = params.get('meal');
+  const activePeople = useLiveQuery(async () => (await peopleRepo.all()).filter((p) => p.active));
 
   const today = useLiveQuery(async () => {
     const plan = await weekPlansRepo.activePlan();
@@ -43,14 +49,16 @@ export function ChefScreen() {
     );
   }
 
-  function parse(raw: string): { ok: true; data: ParsedChat<NewRecipeSpec> } | { ok: false; error: string } {
-    const result = parseChefReply(raw);
+  function parse(raw: string): { ok: true; data: ParsedChat<ChefPayload> } | { ok: false; error: string } {
+    const result = parseChefReply(raw, activePeople ?? []);
     if (!result.ok) return result;
-    return { ok: true, data: { reply: result.data.reply, payload: result.data.recipe } };
+    const { reply, recipe, personNotes } = result.data;
+    const payload: ChefPayload | undefined = recipe || personNotes ? { recipe, personNotes } : undefined;
+    return { ok: true, data: { reply, payload } };
   }
 
   return (
-    <ChatSheet<NewRecipeSpec>
+    <ChatSheet<ChefPayload>
       title="AI chef"
       intro="Tell me what's in your kitchen and what you're in the mood for — I'll cook up a recipe for today."
       placeholder="I have chicken thighs, rice, tomatoes… feeling something smoky"
@@ -61,14 +69,28 @@ export function ChefScreen() {
       ]}
       buildPrompt={buildPrompt}
       parseReply={parse}
-      renderPayload={(spec) => (
-        <ChefRecipeCard
-          spec={spec}
-          planId={today?.planId}
-          meals={today?.meals ?? []}
-          targetMealId={targetMealId}
-          onDone={() => navigate('/')}
-        />
+      onPayload={async (payload) => {
+        for (const note of payload.personNotes ?? []) {
+          await profilesRepo.appendNotes(note.personId, [note.note]);
+        }
+      }}
+      renderPayload={(payload) => (
+        <div className="flex flex-col gap-1.5">
+          {payload.personNotes?.map((n, i) => (
+            <p key={i} className="flex items-center gap-1.5 rounded-lg bg-secondary/15 px-2.5 py-1.5 text-xs font-bold text-secondary">
+              <IconCheck size={14} strokeWidth={3} /> Remembered about {n.person}: {n.note}
+            </p>
+          ))}
+          {payload.recipe && (
+            <ChefRecipeCard
+              spec={payload.recipe}
+              planId={today?.planId}
+              meals={today?.meals ?? []}
+              targetMealId={targetMealId}
+              onDone={() => navigate('/')}
+            />
+          )}
+        </div>
       )}
       onClose={() => navigate(-1)}
     />

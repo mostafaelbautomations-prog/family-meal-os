@@ -13,7 +13,10 @@ import type {
   Person,
   PersonProfile,
   Recipe,
+  RecipePatch,
+  RecipeSuggestion,
   StapleLevel,
+  SuggestionStatus,
   WeekPlan,
 } from '../types';
 import type { RatingReply } from '../lib/ratingLinks';
@@ -278,6 +281,29 @@ export const profilesRepo = {
   all: (): Promise<PersonProfile[]> => db.profiles.toArray(),
   forPerson: (personId: string): Promise<PersonProfile | undefined> => db.profiles.get(personId),
   put: (profile: PersonProfile) => db.profiles.put({ ...profile, lastUpdated: now() }),
+
+  /**
+   * Append kitchen notes learned from chats or review analysis. Deduped
+   * case-insensitively; creates the profile row if the engine never has.
+   */
+  appendNotes: async (personId: string, notes: string[]): Promise<number> => {
+    return db.transaction('rw', db.profiles, async () => {
+      const existing = await db.profiles.get(personId);
+      const current = existing?.notes ?? [];
+      const seen = new Set(current.map((n) => n.trim().toLowerCase()));
+      const added = notes.map((n) => n.trim()).filter((n) => n && !seen.has(n.toLowerCase()));
+      if (added.length === 0) return 0;
+      await db.profiles.put({
+        personId,
+        likes: existing?.likes ?? [],
+        dislikes: existing?.dislikes ?? [],
+        patterns: existing?.patterns ?? [],
+        notes: [...current, ...added],
+        lastUpdated: now(),
+      });
+      return added.length;
+    });
+  },
 };
 
 // --- Settings ------------------------------------------------------------------------
@@ -287,17 +313,53 @@ export const settingsRepo = {
   update: (patch: Partial<Omit<AppSettings, 'id'>>) => db.settings.update('singleton', patch),
 };
 
+// --- Review-driven suggestions (Recipes tab) ---------------------------------------
+
+export const suggestionsRepo = {
+  all: (): Promise<RecipeSuggestion[]> => db.suggestions.toArray(),
+
+  forRecipe: (recipeId: string): Promise<RecipeSuggestion[]> =>
+    db.suggestions.where('recipeId').equals(recipeId).toArray(),
+
+  pending: (): Promise<RecipeSuggestion[]> =>
+    db.suggestions.where('status').equals('pending').toArray(),
+
+  add: (s: RecipeSuggestion) => db.suggestions.add(s),
+
+  /** Mark a suggestion dismissed (or applied) without touching the recipe. */
+  resolve: (id: string, status: Exclude<SuggestionStatus, 'pending'>) =>
+    db.suggestions.update(id, { status, resolvedAt: now() }),
+
+  /**
+   * Replace the open (pending) suggestions for a recipe with a freshly
+   * recomputed set. Applied/dismissed/auto rows are history and stay put.
+   */
+  replacePending: async (recipeId: string, next: RecipeSuggestion[]): Promise<void> => {
+    await db.transaction('rw', db.suggestions, async () => {
+      const old = await db.suggestions
+        .where('recipeId')
+        .equals(recipeId)
+        .filter((s) => s.status === 'pending')
+        .toArray();
+      await db.suggestions.bulkDelete(old.map((s) => s.id));
+      await db.suggestions.bulkAdd(next);
+    });
+  },
+};
+
+/** The cook agreed with a pending suggestion: apply its patch + close it, atomically. */
+export async function applySuggestion(id: string): Promise<void> {
+  await db.transaction('rw', db.suggestions, db.recipes, async () => {
+    const suggestion = await db.suggestions.get(id);
+    if (!suggestion || suggestion.status !== 'pending') return;
+    await applyRecipeChatUpdate(suggestion.recipeId, suggestion.patch);
+    await db.suggestions.update(id, { status: 'applied' as const, resolvedAt: now() });
+  });
+}
+
 // --- AI chat write paths -----------------------------------------------------------------
 
-export interface RecipePatchFromChat {
-  name?: string;
-  description?: string;
-  method?: Recipe['method'];
-  ingredients?: Recipe['ingredients'];
-  prepSteps?: { order: number; instruction: string; offsetMinutes: number; durationMinutes?: number; type: 'advance' | 'cook' }[];
-  nutrition?: { caloriesPerServing: number; proteinPerServing: number; carbsPerServing: number; fatPerServing: number };
-  changeSummary: string;
-}
+export type RecipePatchFromChat = RecipePatch;
 
 /**
  * Apply a recipe-chat adjustment: version bump + changelog append, never
