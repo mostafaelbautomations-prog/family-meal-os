@@ -331,15 +331,15 @@ function AiSection({ aiMode }: { aiMode: 'live' | 'manual' }) {
               aiMode === mode ? 'bg-surface text-primary shadow-sm' : 'text-ink-soft'
             }`}
           >
-            {mode === 'manual' ? 'Manual (free)' : 'Live (API key)'}
+            {mode === 'manual' ? 'Copy/paste (free)' : 'Instant (API key)'}
           </button>
         ))}
       </div>
 
       {aiMode === 'manual' ? (
         <p className="text-sm text-ink-soft">
-          Weekly planning works by copying a prompt into claude.ai and pasting the reply back. Completely
-          free, no key needed.
+          Free fallback: AI features work by copying a prompt into claude.ai and pasting the reply
+          back. Switch to Live and add a key for instant, in-app AI.
         </p>
       ) : (
         <div className="flex flex-col gap-2">
@@ -383,6 +383,7 @@ function AiSection({ aiMode }: { aiMode: 'live' | 'manual' }) {
                 setApiKey(keyDraft);
                 setKeyDraft('');
                 setSavedTick(true);
+                void settingsRepo.update({ aiMode: 'live' }); // key saved → instant mode on
               }}
               className="min-h-11 cursor-pointer rounded-lg bg-primary px-4 font-semibold text-on-strong disabled:opacity-40"
             >

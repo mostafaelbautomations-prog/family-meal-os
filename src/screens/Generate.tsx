@@ -20,6 +20,7 @@ import {
   type EngineDraft,
 } from '../ai/engine';
 import { parseEngineResponse } from '../ai/validate';
+import { ApiKeySetup } from '../components/ApiKeySetup';
 import { IconCheck, IconCopy, IconSparkles, IconTrash } from '../components/Icons';
 import type { Recipe } from '../types';
 
@@ -165,7 +166,8 @@ function IdleStage({
 
   return (
     <div className="flex flex-col gap-4">
-      {aiMode === 'live' && (
+      {!hasKey && <ApiKeySetup onActivated={() => window.location.reload()} />}
+      {aiMode === 'live' && hasKey && (
         <Card>
           <p className="mb-3 text-sm text-ink-soft">
             Claude reads your feedback, retires flops, tweaks recipes and drafts next week. Nothing
@@ -173,24 +175,20 @@ function IdleStage({
           </p>
           <button
             onClick={onStartLive}
-            disabled={!hasKey}
-            className="flex min-h-14 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-primary font-display text-lg text-on-strong disabled:opacity-40"
+            className="flex min-h-14 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-primary font-display text-lg text-on-strong"
           >
             <IconSparkles size={20} /> Generate next week
           </button>
-          {!hasKey && (
-            <p className="mt-2 text-sm text-danger">No API key saved — add one in Settings or use Manual mode below.</p>
-          )}
           <button
             onClick={() => setManualOpen((o) => !o)}
             className="mt-3 min-h-11 w-full cursor-pointer text-sm font-bold text-secondary"
           >
-            {manualOpen ? 'Hide manual mode' : 'Prefer to use claude.ai for free? Manual mode'}
+            {manualOpen ? 'Hide the free fallback' : 'Prefer to use claude.ai for free? Copy/paste mode'}
           </button>
         </Card>
       )}
 
-      {(aiMode === 'manual' || manualOpen) && prompt && (
+      {(aiMode === 'manual' || manualOpen || !hasKey) && prompt && (
         <ManualFlow prompt={prompt} onDraft={(d) => setDraftFromManual(d)} />
       )}
     </div>

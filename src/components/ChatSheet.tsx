@@ -7,6 +7,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { settingsRepo } from '../db/repo';
 import { getApiKey } from '../lib/apiKey';
 import { callClaude } from '../ai/client';
+import { ApiKeySetup } from './ApiKeySetup';
 import type { ChatTurn } from '../ai/chat';
 import { IconChevronRight, IconCopy, IconSparkles, IconX } from './Icons';
 
@@ -53,6 +54,7 @@ export function ChatSheet<P>({
   const [manualPrompt, setManualPrompt] = useState<string | null>(null);
   const [pasted, setPasted] = useState('');
   const [copied, setCopied] = useState(false);
+  const [, setKeyBump] = useState(0); // re-read localStorage after inline key setup
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const settings = useLiveQuery(() => settingsRepo.get());
@@ -139,6 +141,7 @@ export function ChatSheet<P>({
       {/* messages */}
       <div className="flex-1 overflow-y-auto px-4 py-3">
         <div className="flex flex-col gap-3">
+          {!apiKey && <ApiKeySetup onActivated={() => setKeyBump((n) => n + 1)} />}
           {messages.length === 0 && (
             <div>
               <p className="mb-3 text-sm text-ink-soft">{intro}</p>
@@ -177,10 +180,10 @@ export function ChatSheet<P>({
             </div>
           )}
 
-          {/* Manual mode exchange */}
+          {/* Manual fallback exchange (no key / free mode) */}
           {manualPrompt && (
             <div className="rounded-2xl border border-line bg-surface p-3">
-              <p className="mb-2 text-sm font-semibold">Free mode: run this through claude.ai</p>
+              <p className="mb-2 text-sm font-semibold">Free fallback: run this through claude.ai</p>
               <button
                 onClick={() => {
                   void navigator.clipboard.writeText(manualPrompt);
