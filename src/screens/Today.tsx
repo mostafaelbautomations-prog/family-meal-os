@@ -326,7 +326,7 @@ function MealCard({ tm, date, now }: { tm: TodayMeal; date: string; now: Date })
         </label>
       </div>
 
-      {meal.status === 'planned' && !passed && (
+      {meal.status === 'planned' && (
         <div className="mt-2 flex items-center gap-2">
           <MealQuickSwitch planId={planId} mealId={meal.id} currentRecipe={recipe} className="flex-1" />
           <button
