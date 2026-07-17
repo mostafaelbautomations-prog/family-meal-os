@@ -9,7 +9,6 @@ import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { feedbackRepo, recipesRepo, weekPlansRepo } from '../db/repo';
 import { groupActiveRecipes, type RecipeGroups } from '../lib/recipeGroups';
-import { formatMacrosCompact } from '../lib/nutrition';
 import type { Recipe } from '../types';
 import { IconSwap } from './Icons';
 
@@ -53,7 +52,7 @@ export function MealQuickSwitch({
 
   const option = (r: Recipe) => (
     <option key={r.id} value={r.id}>
-      {r.name} · {formatMacrosCompact(r.nutrition)}
+      {r.name}
     </option>
   );
   // Defensive: never list the current recipe twice (it's the top option).

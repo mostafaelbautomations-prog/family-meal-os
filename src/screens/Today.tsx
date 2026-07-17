@@ -83,7 +83,17 @@ export function TodayScreen() {
         <div className="flex flex-col gap-4">
           <AdvancePrepSection meals={meals} date={date} now={now} />
           {meals.map((tm) => (
-            <MealCard key={tm.meal.id} tm={tm} date={date} now={now} />
+            <MealCard
+              key={tm.meal.id}
+              tm={tm}
+              date={date}
+              now={now}
+              defaultExpanded={
+                tm.meal.id ===
+                meals.find((m) => m.meal.status === 'planned' && !servePassed(date, m.meal.serveTime, now))
+                  ?.meal.id
+              }
+            />
           ))}
           <Link
             to="/chef"
@@ -130,7 +140,10 @@ function BackupNudge() {
 // --- Advance prep (defrost / marinate / soak) --------------------------------
 
 function AdvancePrepSection({ meals, date, now }: { meals: TodayMeal[]; date: string; now: Date }) {
-  const [, setBump] = useState(0); // re-render after toggling a localStorage check
+  // bump must be a dependency below: checks live in localStorage, so the memo
+  // has to recompute after a toggle or the checkmark won't appear until the
+  // next 30s clock tick.
+  const [bump, setBump] = useState(0);
 
   const items = useMemo(() => {
     return meals.flatMap((tm) => {
@@ -143,7 +156,7 @@ function AdvancePrepSection({ meals, date, now }: { meals: TodayMeal[]; date: st
         checked: checks.has(step.id),
       }));
     });
-  }, [meals, date, now]);
+  }, [meals, date, now, bump]);
 
   if (items.length === 0) return null;
 
@@ -290,9 +303,20 @@ function SwapGroup({
 
 // --- One meal ------------------------------------------------------------------
 
-function MealCard({ tm, date, now }: { tm: TodayMeal; date: string; now: Date }) {
+function MealCard({
+  tm,
+  date,
+  now,
+  defaultExpanded,
+}: {
+  tm: TodayMeal;
+  date: string;
+  now: Date;
+  defaultExpanded: boolean;
+}) {
   const { meal, recipe, planId } = tm;
   const navigate = useNavigate();
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const [, setBump] = useState(0);
   const [ranOut, setRanOut] = useState<Set<string>>(new Set());
   const [swapOpen, setSwapOpen] = useState(false);
@@ -303,50 +327,47 @@ function MealCard({ tm, date, now }: { tm: TodayMeal; date: string; now: Date })
   const passed = servePassed(date, meal.serveTime, now);
   const checks = getChecks(meal.id);
 
+  // Per-meal servings scaling: quantities shown scale from the recipe's base.
+  const servings = meal.servings ?? recipe.servingsBase;
+  const factor = servings / recipe.servingsBase;
+  const scaleQty = (q: number) => Math.round(q * factor * 100) / 100;
+
+  function setServings(next: number) {
+    const clamped = Math.min(8, Math.max(1, next));
+    void weekPlansRepo.updateMeal(planId, meal.id, { servings: clamped });
+  }
+
   return (
     <Card>
-      <div className="flex items-start justify-between gap-2">
+      {/* Header — tap anywhere to expand/collapse */}
+      <button
+        onClick={() => setExpanded((e) => !e)}
+        aria-expanded={expanded}
+        className="flex w-full cursor-pointer items-start justify-between gap-2 text-left"
+      >
         <div className="min-w-0">
           <p className="text-xs font-bold tracking-wide text-secondary uppercase">{SLOT_LABEL[meal.slot]}</p>
-          <Link to={`/recipe/${recipe.id}`} className="font-display text-xl leading-tight">
-            {recipe.name}
-          </Link>
-          <p className="mt-0.5 text-sm text-ink-soft">{formatMacros(recipe.nutrition)}</p>
+          <p className="font-display text-xl leading-tight">{recipe.name}</p>
+          {expanded ? (
+            <p className="mt-0.5 text-sm text-ink-soft">{formatMacros(recipe.nutrition)}</p>
+          ) : (
+            <p className="mt-0.5 text-sm text-ink-soft">
+              {meal.serveTime} · {formatMacrosCompact(recipe.nutrition)}
+              {meal.status === 'skipped' && ' · skipped'}
+              {tm.logged && <span className="font-semibold text-accent"> · logged ✓</span>}
+            </p>
+          )}
         </div>
-        <label className="flex shrink-0 flex-col items-end text-xs font-semibold text-ink-soft">
-          Serve at
-          <input
-            type="time"
-            value={meal.serveTime}
-            onChange={(e) => {
-              if (e.target.value) void weekPlansRepo.updateMeal(planId, meal.id, { serveTime: e.target.value });
-            }}
-            className="mt-1 min-h-11 rounded-lg border border-line bg-surface px-2 text-base font-semibold text-ink"
-          />
-        </label>
-      </div>
+        <span
+          className={`mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-mist text-ink-soft transition-transform ${
+            expanded ? '-rotate-90' : 'rotate-90'
+          }`}
+        >
+          <IconChevronRight size={18} />
+        </span>
+      </button>
 
-      {meal.status === 'planned' && (
-        <div className="mt-2 flex items-center gap-2">
-          <MealQuickSwitch planId={planId} mealId={meal.id} currentRecipe={recipe} className="flex-1" />
-          <button
-            onClick={() => setSwapOpen(true)}
-            className="flex min-h-11 shrink-0 cursor-pointer items-center gap-1 rounded-lg px-2 text-sm font-bold text-secondary"
-          >
-            <IconSparkles size={14} /> More
-          </button>
-        </div>
-      )}
-      {swapOpen && (
-        <SwapTodaySheet
-          planId={planId}
-          meal={meal}
-          currentName={recipe.name}
-          onClose={() => setSwapOpen(false)}
-        />
-      )}
-
-      {/* Feedback prompt once serve time passed */}
+      {/* Feedback is the #1 action — reachable even when collapsed */}
       {passed && meal.status !== 'skipped' && !tm.logged && (
         <Link
           to="/log"
@@ -356,111 +377,182 @@ function MealCard({ tm, date, now }: { tm: TodayMeal; date: string; now: Date })
           <IconChevronRight size={20} />
         </Link>
       )}
-      {tm.logged && (
-        <p className="mt-3 flex items-center gap-1.5 text-sm font-semibold text-accent">
-          <IconCheck size={16} /> Feedback logged
-        </p>
-      )}
-      {passed && meal.status !== 'skipped' && (
-        <button
-          onClick={() => setRatingLinksOpen(true)}
-          className="mt-2 flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-line bg-surface font-semibold text-secondary"
-        >
-          <IconShare size={16} /> Send family rating links
-        </button>
-      )}
-      {ratingLinksOpen && (
-        <RatingLinksSheet
-          plannedMealId={meal.id}
-          recipeId={recipe.id}
-          recipeName={recipe.name}
-          date={date}
-          onClose={() => setRatingLinksOpen(false)}
-        />
-      )}
 
-      {/* Cook timeline */}
-      {cooking.length > 0 && (
-        <div className="mt-4">
-          <div className="mb-1.5 flex items-center justify-between">
-            <h3 className="text-sm font-bold text-ink">Timeline</h3>
-            {meal.status === 'planned' && (
-              <button
-                onClick={() => navigate(`/cook/${meal.id}`)}
-                className="flex min-h-11 cursor-pointer items-center gap-1.5 rounded-xl bg-secondary px-4 font-semibold text-on-strong"
-              >
-                <IconFlame size={18} /> Cook mode
-              </button>
-            )}
+      {expanded && (
+        <>
+          <div className="mt-3 flex items-end justify-between gap-3">
+            <label className="flex flex-col text-xs font-semibold text-ink-soft">
+              Serve at
+              <input
+                type="time"
+                value={meal.serveTime}
+                onChange={(e) => {
+                  if (e.target.value)
+                    void weekPlansRepo.updateMeal(planId, meal.id, { serveTime: e.target.value });
+                }}
+                className="mt-1 min-h-11 rounded-lg border border-line bg-surface px-2 text-base font-semibold text-ink"
+              />
+            </label>
+            <div className="flex flex-col items-end text-xs font-semibold text-ink-soft">
+              Servings
+              <div className="mt-1 flex items-center gap-1">
+                <button
+                  onClick={() => setServings(servings - 1)}
+                  disabled={servings <= 1}
+                  aria-label="Fewer servings"
+                  className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-lg border border-line bg-surface text-lg font-bold text-ink disabled:opacity-30"
+                >
+                  −
+                </button>
+                <span className="w-8 text-center font-display text-lg text-ink">{servings}</span>
+                <button
+                  onClick={() => setServings(servings + 1)}
+                  disabled={servings >= 8}
+                  aria-label="More servings"
+                  className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-lg border border-line bg-surface text-lg font-bold text-ink disabled:opacity-30"
+                >
+                  +
+                </button>
+              </div>
+            </div>
           </div>
-          <ol className="flex flex-col gap-1.5">
-            {cooking.map((step) => (
-              <li key={step.id} className="flex items-baseline gap-2 text-sm">
-                <span className="w-12 shrink-0 font-mono font-semibold text-secondary tabular-nums">
-                  {formatClock(step.due)}
-                </span>
-                <span className={step.pastDue && meal.status === 'planned' ? 'text-ink-soft' : ''}>
-                  {step.instruction}
-                  {step.durationMinutes ? ` (${step.durationMinutes} min)` : ''}
-                </span>
-              </li>
-            ))}
-            <li className="flex items-baseline gap-2 text-sm font-bold">
-              <span className="w-12 shrink-0 font-mono text-primary tabular-nums">{meal.serveTime}</span>
-              <span>Serve</span>
-            </li>
-          </ol>
-        </div>
-      )}
 
-      {/* Ingredient checklist */}
-      <div className="mt-4">
-        <h3 className="mb-1.5 text-sm font-bold">Ingredients</h3>
-        <ul className="flex flex-col divide-y divide-line">
-          {recipe.ingredients.map((ing) => {
-            const ingId = `ing:${ing.name}`;
-            const checked = checks.has(ingId);
-            const flagged = ranOut.has(ing.name);
-            return (
-              <li key={ing.name} className="flex items-center gap-2 py-1">
-                <button
-                  onClick={() => {
-                    toggleCheck(meal.id, ingId);
-                    setBump((n) => n + 1);
-                  }}
-                  className="flex min-h-11 flex-1 cursor-pointer items-center gap-3 text-left"
-                >
-                  <span
-                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 ${
-                      checked ? 'border-accent bg-accent text-on-strong' : 'border-line'
-                    }`}
+          <Link to={`/recipe/${recipe.id}`} className="mt-2 inline-flex min-h-11 items-center gap-1 text-sm font-bold text-primary">
+            Open recipe <IconChevronRight size={16} />
+          </Link>
+
+          {meal.status === 'planned' && (
+            <div className="mt-1 flex items-center gap-2">
+              <MealQuickSwitch planId={planId} mealId={meal.id} currentRecipe={recipe} className="flex-1" />
+              <button
+                onClick={() => setSwapOpen(true)}
+                className="flex min-h-11 shrink-0 cursor-pointer items-center gap-1 rounded-lg px-2 text-sm font-bold text-secondary"
+              >
+                <IconSparkles size={14} /> More
+              </button>
+            </div>
+          )}
+          {swapOpen && (
+            <SwapTodaySheet
+              planId={planId}
+              meal={meal}
+              currentName={recipe.name}
+              onClose={() => setSwapOpen(false)}
+            />
+          )}
+
+          {tm.logged && (
+            <p className="mt-3 flex items-center gap-1.5 text-sm font-semibold text-accent">
+              <IconCheck size={16} /> Feedback logged
+            </p>
+          )}
+          {passed && meal.status !== 'skipped' && (
+            <button
+              onClick={() => setRatingLinksOpen(true)}
+              className="mt-2 flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-line bg-surface font-semibold text-secondary"
+            >
+              <IconShare size={16} /> Send the family rating link
+            </button>
+          )}
+          {ratingLinksOpen && (
+            <RatingLinksSheet
+              plannedMealId={meal.id}
+              recipeId={recipe.id}
+              recipeName={recipe.name}
+              date={date}
+              onClose={() => setRatingLinksOpen(false)}
+            />
+          )}
+
+          {/* Cook timeline */}
+          {cooking.length > 0 && (
+            <div className="mt-4">
+              <div className="mb-1.5 flex items-center justify-between">
+                <h3 className="text-sm font-bold text-ink">Timeline</h3>
+                {meal.status === 'planned' && (
+                  <button
+                    onClick={() => navigate(`/cook/${meal.id}`)}
+                    className="flex min-h-11 cursor-pointer items-center gap-1.5 rounded-xl bg-secondary px-4 font-semibold text-on-strong"
                   >
-                    {checked && <IconCheck size={16} strokeWidth={3} />}
-                  </span>
-                  <span className={`capitalize ${checked ? 'text-ink-soft line-through' : ''}`}>
-                    {ing.name}{' '}
-                    <span className="text-xs text-ink-soft">
-                      {ing.quantity} {ing.unit}
+                    <IconFlame size={18} /> Cook mode
+                  </button>
+                )}
+              </div>
+              <ol className="flex flex-col gap-1.5">
+                {cooking.map((step) => (
+                  <li key={step.id} className="flex items-baseline gap-2 text-sm">
+                    <span className="w-12 shrink-0 font-mono font-semibold text-secondary tabular-nums">
+                      {formatClock(step.due)}
                     </span>
-                  </span>
-                </button>
-                <button
-                  onClick={() => {
-                    void markIngredientRanOut(ing.name, recipe.id);
-                    setRanOut((s) => new Set(s).add(ing.name));
-                  }}
-                  disabled={flagged}
-                  className={`min-h-11 shrink-0 cursor-pointer rounded-lg px-3 text-xs font-bold ${
-                    flagged ? 'text-accent' : 'bg-mist text-secondary'
-                  }`}
-                >
-                  {flagged ? 'On list ✓' : 'Ran out'}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
+                    <span className={step.pastDue && meal.status === 'planned' ? 'text-ink-soft' : ''}>
+                      {step.instruction}
+                      {step.durationMinutes ? ` (${step.durationMinutes} min)` : ''}
+                    </span>
+                  </li>
+                ))}
+                <li className="flex items-baseline gap-2 text-sm font-bold">
+                  <span className="w-12 shrink-0 font-mono text-primary tabular-nums">{meal.serveTime}</span>
+                  <span>Serve</span>
+                </li>
+              </ol>
+            </div>
+          )}
+
+          {/* Ingredient checklist (quantities scaled to today's servings) */}
+          <div className="mt-4">
+            <h3 className="mb-1.5 text-sm font-bold">
+              Ingredients
+              {servings !== recipe.servingsBase && (
+                <span className="ml-1 font-semibold text-secondary">· scaled for {servings}</span>
+              )}
+            </h3>
+            <ul className="flex flex-col divide-y divide-line">
+              {recipe.ingredients.map((ing) => {
+                const ingId = `ing:${ing.name}`;
+                const checked = checks.has(ingId);
+                const flagged = ranOut.has(ing.name);
+                return (
+                  <li key={ing.name} className="flex items-center gap-2 py-1">
+                    <button
+                      onClick={() => {
+                        toggleCheck(meal.id, ingId);
+                        setBump((n) => n + 1);
+                      }}
+                      className="flex min-h-11 flex-1 cursor-pointer items-center gap-3 text-left"
+                    >
+                      <span
+                        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 ${
+                          checked ? 'border-accent bg-accent text-on-strong' : 'border-line'
+                        }`}
+                      >
+                        {checked && <IconCheck size={16} strokeWidth={3} />}
+                      </span>
+                      <span className={`capitalize ${checked ? 'text-ink-soft line-through' : ''}`}>
+                        {ing.name}{' '}
+                        <span className="text-xs text-ink-soft">
+                          {scaleQty(ing.quantity)} {ing.unit}
+                        </span>
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        void markIngredientRanOut(ing.name, recipe.id);
+                        setRanOut((s) => new Set(s).add(ing.name));
+                      }}
+                      disabled={flagged}
+                      className={`min-h-11 shrink-0 cursor-pointer rounded-lg px-3 text-xs font-bold ${
+                        flagged ? 'text-accent' : 'bg-mist text-secondary'
+                      }`}
+                    >
+                      {flagged ? 'On list ✓' : 'Ran out'}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </>
+      )}
     </Card>
   );
 }

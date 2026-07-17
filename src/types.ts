@@ -68,6 +68,12 @@ export interface PlannedMeal {
   slot: MealSlot;
   serveTime: string; // "18:00"
   status: MealStatus;
+  /**
+   * How many people are eating this specific meal (e.g. 3 when Dad's out).
+   * Overrides the recipe's servingsBase for ingredient scaling and grocery
+   * quantities. Optional: absent = cook for servingsBase.
+   */
+  servings?: number;
 }
 
 export interface DayPlan {

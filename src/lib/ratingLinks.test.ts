@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  decodeGroupRequest,
   decodeReply,
   decodeRequest,
   encodePayload,
+  groupRequestLink,
   ratingToEnjoyment,
   replyLink,
   requestLink,
+  type GroupRatingRequest,
   type RatingReply,
   type RatingRequest,
 } from './ratingLinks';
@@ -66,6 +69,45 @@ describe('rating link payloads', () => {
     // param survives URL round-trip
     const param = new URL(url).searchParams.get('d')!;
     expect(decodeRequest(param)).toEqual(req);
+  });
+});
+
+describe('group rating link (one link for the family chat)', () => {
+  const greq: GroupRatingRequest = {
+    v: 1,
+    t: 'greq',
+    mealId: 'm1',
+    recipeId: 'r1',
+    meal: 'Chicken Tacos',
+    date: '2026-07-15',
+    people: [
+      { id: 'p1', name: 'Dad' },
+      { id: 'p2', name: 'Mom' },
+      { id: 'p3', name: 'Marwan' },
+    ],
+  };
+
+  it('round-trips a group request', () => {
+    expect(decodeGroupRequest(encodePayload(greq))).toEqual(greq);
+  });
+
+  it('is not decodable as a single request (and vice versa)', () => {
+    expect(decodeRequest(encodePayload(greq))).toBeNull();
+    expect(decodeGroupRequest(encodePayload(req))).toBeNull();
+  });
+
+  it('rejects an empty or malformed people list', () => {
+    const empty = { ...greq, people: [] };
+    expect(decodeGroupRequest(encodePayload(empty as GroupRatingRequest))).toBeNull();
+    const bad = { ...greq, people: [{ id: 'p1' }] };
+    expect(decodeGroupRequest(encodePayload(bad as unknown as GroupRatingRequest))).toBeNull();
+  });
+
+  it('builds a /rate URL that survives the round-trip', () => {
+    const url = groupRequestLink(greq, 'https://example.com/app/');
+    expect(url.startsWith('https://example.com/app/rate?d=')).toBe(true);
+    const param = new URL(url).searchParams.get('d')!;
+    expect(decodeGroupRequest(param)?.people.map((p) => p.name)).toEqual(['Dad', 'Mom', 'Marwan']);
   });
 });
 

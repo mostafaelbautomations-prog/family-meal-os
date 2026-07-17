@@ -8,12 +8,16 @@ describe('classifySuggestion', () => {
     expect(classifySuggestion(family, family)).toBe('auto');
   });
 
+  it('auto-applies when 3 of 4 agree', () => {
+    expect(classifySuggestion(['dad', 'mom', 'marwan'], family)).toBe('auto');
+  });
+
   it('queues a pending suggestion when 2 of 4 agree', () => {
     expect(classifySuggestion(['dad', 'mom'], family)).toBe('pending');
   });
 
-  it('queues when 3 of 4 agree (not unanimous)', () => {
-    expect(classifySuggestion(['dad', 'mom', 'marwan'], family)).toBe('pending');
+  it('queues when 2 of 3 agree', () => {
+    expect(classifySuggestion(['dad', 'mom'], ['dad', 'mom', 'marwan'])).toBe('pending');
   });
 
   it('skips a single voice', () => {
@@ -27,8 +31,8 @@ describe('classifySuggestion', () => {
   it('ignores supporters who are not active members', () => {
     // "guest" doesn't count: only 1 valid supporter left → skip
     expect(classifySuggestion(['guest', 'dad'], family)).toBe('skip');
-    // unanimity can't be reached through non-members
-    expect(classifySuggestion(['guest', 'dad', 'mom', 'marwan'], family)).toBe('pending');
+    // 3 valid members remain after dropping the guest → auto
+    expect(classifySuggestion(['guest', 'dad', 'mom', 'marwan'], family)).toBe('auto');
   });
 
   it('dedupes repeated supporter ids', () => {

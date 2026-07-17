@@ -58,11 +58,11 @@ export const weekPlansRepo = {
   byId: (id: string): Promise<WeekPlan | undefined> => db.weekPlans.get(id),
   all: (): Promise<WeekPlan[]> => db.weekPlans.toArray(),
 
-  /** Update one planned meal in place (serve time / status / recipe swap). */
+  /** Update one planned meal in place (serve time / status / recipe swap / servings). */
   updateMeal: async (
     planId: string,
     plannedMealId: string,
-    patch: Partial<{ serveTime: string; status: MealStatus; recipeId: string }>
+    patch: Partial<{ serveTime: string; status: MealStatus; recipeId: string; servings: number }>
   ): Promise<void> => {
     await db.transaction('rw', db.weekPlans, async () => {
       const plan = await db.weekPlans.get(planId);

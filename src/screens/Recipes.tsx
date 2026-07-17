@@ -10,7 +10,7 @@ import { SuggestionChipRow } from '../components/ReviewPanel';
 import { peopleRepo, ratingsRepo, recipesRepo, suggestionsRepo } from '../db/repo';
 import { newReviewCount } from '../ai/review';
 import { formatMacrosCompact } from '../lib/nutrition';
-import { IconChevronRight, IconSparkles } from '../components/Icons';
+import { IconChevronRight, IconPlus, IconSparkles } from '../components/Icons';
 import type { Recipe } from '../types';
 
 export function RecipesScreen() {
@@ -49,12 +49,22 @@ export function RecipesScreen() {
           : 'Every dish, evolving with the family’s reviews'
       }
     >
-      <input
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search recipes…"
-        className="mb-3 min-h-12 w-full rounded-2xl border border-line bg-surface px-4"
-      />
+      <div className="mb-3 flex gap-2">
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search recipes…"
+          className="min-h-12 w-0 flex-1 rounded-2xl border border-line bg-surface px-4"
+        />
+        <Link
+          to="/chef"
+          aria-label="Create a new recipe with the AI chef"
+          title="Describe the meal you're envisioning — the AI chef writes the recipe"
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary text-on-strong"
+        >
+          <IconPlus size={24} />
+        </Link>
+      </div>
 
       {recipes && active.length === 0 && retired.length === 0 && (
         <Card>

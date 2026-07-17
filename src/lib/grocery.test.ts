@@ -96,4 +96,20 @@ describe('buildWeekGroceryList', () => {
     const list = buildWeekGroceryList(plan(['a', 'a']), new Map([['a', a]]));
     expect(list[0].quantity).toBe('0.5 pieces');
   });
+
+  it('scales quantities by per-meal servings overrides', () => {
+    const a = recipe('a', [ing('chicken breast', 600, 'g')]); // base 4 servings
+    const p = plan(['a']);
+    p.days[0].meals[0].servings = 3; // Dad's out tonight
+    const list = buildWeekGroceryList(p, new Map([['a', a]]));
+    expect(list[0].quantity).toBe('450 g');
+  });
+
+  it('leaves quantities unscaled when servings matches the base', () => {
+    const a = recipe('a', [ing('chicken breast', 600, 'g')]);
+    const p = plan(['a']);
+    p.days[0].meals[0].servings = 4;
+    const list = buildWeekGroceryList(p, new Map([['a', a]]));
+    expect(list[0].quantity).toBe('600 g');
+  });
 });

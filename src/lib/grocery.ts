@@ -20,12 +20,14 @@ export function buildWeekGroceryList(plan: WeekPlan, recipes: Map<string, Recipe
       if (meal.status === 'skipped') continue;
       const recipe = recipes.get(meal.recipeId);
       if (!recipe) continue;
+      // Per-meal servings override (e.g. 3 when someone's out) scales quantities.
+      const factor = (meal.servings ?? recipe.servingsBase) / recipe.servingsBase;
       for (const ing of recipe.ingredients) {
         if (ing.isStaple) continue; // staples come from the pantry
         const name = normalizeIngredientName(ing.name);
         const entry = acc.get(name) ?? { units: new Map<string, number>(), recipeIds: new Set<string>() };
         const unit = ing.unit.trim().toLowerCase();
-        entry.units.set(unit, (entry.units.get(unit) ?? 0) + ing.quantity);
+        entry.units.set(unit, (entry.units.get(unit) ?? 0) + ing.quantity * factor);
         entry.recipeIds.add(recipe.id);
         acc.set(name, entry);
       }

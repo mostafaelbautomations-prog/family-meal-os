@@ -1,6 +1,7 @@
 // Share-link rating screens.
 // /rate         — opened on a FAMILY MEMBER's phone. Renders entirely from the
 //                 URL payload (their browser has none of the cook's data).
+//                 Group links ask "who are you?" first; then the rating form.
 //                 Submitting builds a reply link to send back.
 // /rate/return  — opened on the COOK's phone from that reply link; saves the
 //                 rating into the local DB.
@@ -10,9 +11,12 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card } from '../components/Screen';
 import { ratingsRepo, settingsRepo } from '../db/repo';
 import {
+  decodeGroupRequest,
   decodeReply,
   decodeRequest,
   replyLink,
+  type RatingRequest,
+  type RatingRequestPerson,
   type RatingReply,
 } from '../lib/ratingLinks';
 import { getApiKey } from '../lib/apiKey';
@@ -24,7 +28,25 @@ import { IconCheck, IconCopy, IconSparkles } from '../components/Icons';
 
 export function RateScreen() {
   const [params] = useSearchParams();
-  const request = useMemo(() => decodeRequest(params.get('d') ?? ''), [params]);
+  // One link now serves the whole group chat; legacy per-person links still work.
+  const group = useMemo(() => decodeGroupRequest(params.get('d') ?? ''), [params]);
+  const legacy = useMemo(() => decodeRequest(params.get('d') ?? ''), [params]);
+  const [who, setWho] = useState<RatingRequestPerson | null>(null);
+
+  const request: RatingRequest | null =
+    legacy ??
+    (group && who
+      ? {
+          v: 1,
+          t: 'req',
+          mealId: group.mealId,
+          recipeId: group.recipeId,
+          personId: who.id,
+          person: who.name,
+          meal: group.meal,
+          date: group.date,
+        }
+      : null);
 
   const [rating, setRating] = useState<number | null>(null);
   const [enjoyed, setEnjoyed] = useState('');
@@ -32,7 +54,7 @@ export function RateScreen() {
   const [link, setLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  if (!request) {
+  if (!request && !group) {
     return (
       <Shell>
         <Card>
@@ -44,6 +66,30 @@ export function RateScreen() {
       </Shell>
     );
   }
+
+  // Group link, name not picked yet → "who are you?"
+  if (!request && group) {
+    return (
+      <Shell>
+        <h1 className="font-display text-2xl">Who are you?</h1>
+        <p className="mt-1 text-ink-soft">
+          Rating <span className="font-bold text-ink">{group.meal}</span> — tap your name.
+        </p>
+        <div className="mt-4 flex flex-col gap-2">
+          {group.people.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => setWho(p)}
+              className="min-h-14 cursor-pointer rounded-2xl border border-line bg-surface font-display text-lg"
+            >
+              {p.name}
+            </button>
+          ))}
+        </div>
+      </Shell>
+    );
+  }
+  if (!request) return null; // unreachable — narrows the type below
 
   const reply: Omit<RatingReply, 'v' | 't'> | null =
     rating === null
@@ -114,6 +160,14 @@ export function RateScreen() {
       <h1 className="font-display text-2xl">Hey {request.person}!</h1>
       <p className="mt-1 text-ink-soft">
         How was <span className="font-bold text-ink">{request.meal}</span>?
+        {group && who && (
+          <button
+            onClick={() => setWho(null)}
+            className="ml-2 cursor-pointer text-sm font-bold text-primary underline"
+          >
+            Not {who.name}?
+          </button>
+        )}
       </p>
 
       <Card className="mt-4">

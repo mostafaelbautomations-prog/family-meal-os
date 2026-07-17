@@ -1,8 +1,9 @@
 // Share-link rating flow (spec §12 "share-link hack", now v1): no backend, so
-// everything travels inside URLs. The cook sends each person a REQUEST link;
-// their phone renders the rating form from the payload alone (no shared DB);
-// submitting builds a REPLY link they send back; opening that on the cook's
-// device imports the rating. Pure functions — unit tested.
+// everything travels inside URLs. The cook drops ONE group link in the family
+// chat; each person opens it, taps their own name, and rates. Submitting
+// builds a REPLY link they send back; opening that on the cook's device
+// imports the rating. Pure functions — unit tested.
+// (Legacy per-person 'req' links still decode, so old messages keep working.)
 
 export interface RatingRequest {
   v: 1;
@@ -13,6 +14,22 @@ export interface RatingRequest {
   person: string; // display name, so the form works with zero local data
   meal: string; // recipe name
   date: string; // ISO date of the meal
+}
+
+export interface RatingRequestPerson {
+  id: string;
+  name: string;
+}
+
+/** One link for the whole group chat — the opener picks their name first. */
+export interface GroupRatingRequest {
+  v: 1;
+  t: 'greq';
+  mealId: string;
+  recipeId: string;
+  meal: string;
+  date: string;
+  people: RatingRequestPerson[];
 }
 
 export interface RatingReply {
@@ -33,7 +50,7 @@ const MAX_TEXT = 500;
 
 // --- base64url (unicode-safe) ---------------------------------------------------
 
-export function encodePayload(obj: RatingRequest | RatingReply): string {
+export function encodePayload(obj: RatingRequest | GroupRatingRequest | RatingReply): string {
   const bytes = new TextEncoder().encode(JSON.stringify(obj));
   let bin = '';
   for (const b of bytes) bin += String.fromCharCode(b);
@@ -61,6 +78,29 @@ export function decodeRequest(param: string): RatingRequest | null {
     if (!strFields.every((f) => typeof d[f] === 'string' && d[f])) return null;
     const r = d as unknown as RatingRequest;
     return { v: 1, t: 'req', mealId: r.mealId, recipeId: r.recipeId, personId: r.personId, person: r.person, meal: r.meal, date: r.date };
+  } catch {
+    return null;
+  }
+}
+
+const groupStrFields = ['mealId', 'recipeId', 'meal', 'date'] as const;
+const MAX_PEOPLE = 12;
+
+export function decodeGroupRequest(param: string): GroupRatingRequest | null {
+  try {
+    const d = decodeRaw(param);
+    if (!isRecord(d) || d.v !== 1 || d.t !== 'greq') return null;
+    if (!groupStrFields.every((f) => typeof d[f] === 'string' && d[f])) return null;
+    if (!Array.isArray(d.people) || d.people.length === 0 || d.people.length > MAX_PEOPLE) return null;
+    const people: RatingRequestPerson[] = [];
+    for (const p of d.people) {
+      if (!isRecord(p) || typeof p.id !== 'string' || !p.id || typeof p.name !== 'string' || !p.name.trim()) {
+        return null;
+      }
+      people.push({ id: p.id, name: p.name.trim().slice(0, 40) });
+    }
+    const r = d as unknown as GroupRatingRequest;
+    return { v: 1, t: 'greq', mealId: r.mealId, recipeId: r.recipeId, meal: r.meal, date: r.date, people };
   } catch {
     return null;
   }
@@ -102,6 +142,10 @@ export function appBaseUrl(): string {
 
 export function requestLink(req: Omit<RatingRequest, 'v' | 't'>, base = appBaseUrl()): string {
   return `${base}rate?d=${encodePayload({ v: 1, t: 'req', ...req })}`;
+}
+
+export function groupRequestLink(req: Omit<GroupRatingRequest, 'v' | 't'>, base = appBaseUrl()): string {
+  return `${base}rate?d=${encodePayload({ v: 1, t: 'greq', ...req })}`;
 }
 
 export function replyLink(res: Omit<RatingReply, 'v' | 't'>, base = appBaseUrl()): string {

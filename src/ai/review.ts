@@ -1,8 +1,8 @@
 // Review analysis: turn the family's reviews of a recipe (cook-logged
 // feedback + member self-ratings) into concrete recipe changes.
-//   - unanimous across the active family → applied automatically (status 'auto')
-//   - ≥2 supporters                      → 'pending' chip in the Recipes tab
-//   - single voice                       → dropped (weekly engine still sees it)
+//   - ≥3 supporters (or all of a 2-person household) → applied automatically ('auto')
+//   - ≥2 supporters                                  → 'pending' chip in the Recipes tab
+//   - single voice                                   → dropped (weekly engine still sees it)
 // Each run is a stateless recompute: the model returns the CURRENT set of open
 // suggestions (supporters grow as more reviews arrive) and we replace the
 // pending rows. Applied/dismissed summaries are passed as "never re-suggest".
@@ -280,7 +280,7 @@ export async function applyReviewAnalysis(recipeId: string, analysis: ReviewAnal
       if (verdict === 'auto') {
         await applyRecipeChatUpdate(recipeId, {
           ...s.patch,
-          changeSummary: `${s.patch.changeSummary} (whole family agreed)`,
+          changeSummary: `${s.patch.changeSummary} (${s.supporterNames.join(', ')} agreed)`,
         });
         await suggestionsRepo.add(row);
         autoApplied.push(row);

@@ -76,7 +76,7 @@ export function SuggestionChipRow({ suggestion, people }: { suggestion: RecipeSu
 export function outcomeLine(outcome: ReviewOutcome): string {
   const bits: string[] = [];
   if (outcome.autoApplied.length > 0) {
-    bits.push(`Applied automatically (everyone agreed): ${outcome.autoApplied.map((s) => s.summary).join('; ')}`);
+    bits.push(`Applied automatically (3+ agreed): ${outcome.autoApplied.map((s) => s.summary).join('; ')}`);
   }
   if (outcome.queued.length > 0) {
     bits.push(`${outcome.queued.length} suggestion${outcome.queued.length > 1 ? 's' : ''} below — your call`);
@@ -157,7 +157,7 @@ export function ReviewPanel({ recipeId }: { recipeId: string }) {
           {recentAuto.map((s) => (
             <li key={s.id} className="flex items-start gap-1.5 text-xs font-semibold text-accent">
               <IconCheck size={14} strokeWidth={3} className="mt-0.5 shrink-0" />
-              Applied automatically — {s.summary} (everyone agreed)
+              Applied automatically — {s.summary} ({supporterNames(s, people ?? [])} agreed)
             </li>
           ))}
         </ul>
